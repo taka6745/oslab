@@ -1,0 +1,3 @@
+[submodule "tools/osenv"]
+	path = tools/osenv
+	url = https://github.com/taka6745/osenv.git
