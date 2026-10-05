@@ -12,7 +12,7 @@ These are release-blocking requirements for every contributor and agent.
   provenance and any reuse of our own projects in the task entry.
 - External executables (compiler, assembler, linker, debugger, emulator, Git/SSH)
   and the Python standard library are development infrastructure. They must not
-  become guest code or third-party harness dependencies. Firmware is recorded
+  become guest code or dependencies of this repository. Firmware is recorded
   emulator infrastructure, not a project-authored boot chain.
 - Hardware addresses, format constants, setup-specific configuration and explicit
   test vectors are allowed when their meaning is documented. Do not hardcode

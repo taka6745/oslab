@@ -11,6 +11,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Enforce OS-only tracked file boundary
+        shell: bash
+        run: |
+          allowed() {
+            case "$1" in
+              README.md|AGENTS.md|INTEGRITY.md|TASKS.md|.gitignore|Makefile|linker.ld|.github/workflows/source.yml) return 0 ;;
+              boot/*|kernel/*|arch/*|include/*|src/*|tests/*)
+                case "$1" in
+                  *.c|*.h|*.asm|*.inc|*.S|*.s|*.ld|*.md) return 0 ;;
+                esac ;;
+            esac
+            return 1
+          }
+          # Prove the boundary rejects unrelated content before auditing the tree.
+          for forbidden in dev tools/osenv fixture/boot.asm src/controller.py kernel/vendor.a runs/status.json local/deploy.json; do
+            if allowed "$forbidden"; then
+              echo "Boundary incorrectly accepts $forbidden"
+              exit 1
+            fi
+          done
+          for required in boot/stage1.asm kernel/main.c include/kernel.h Makefile; do
+            allowed "$required" || exit 1
+          done
+          while IFS= read -r -d '' path; do
+            if ! allowed "$path"; then
+              echo "Unrelated file forbidden in OS repository: $path"
+              exit 1
+            fi
+          done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
           HARNESS_COMMIT: 7999656e7e6701ec83cea5aaf12a4c8ca90111b8

@@ -8,14 +8,34 @@ Build the external harness first, then the complete disk boot chain, exceptions/
 
 Use local QEMU software emulation for development and a dedicated homelab VM for final validation. Discover authenticated access and capacity; keep host configuration private. Automate setup and diagnose recoverable failures. Ask only for unavailable credentials, unresolved product scope, or destructive changes outside this project's resources. If remote access is blocked, continue local work and report the exact blocker. Preserve unrelated VMs and dirty work.
 
-## Required external tool interface
+## Repository boundary
 
-Maintain the CLI in the external osenv repository, never vendor it here. Require
-one CLI for setup/doctor, build, run, logs, test, debug, capture, stop/recover and deploy. Add MCP only when a caller requires it; reuse the CLI implementation. All operations must be noninteractive, bounded and return useful exit codes plus structured results. Long operations return IDs; logs support cursors. Isolate sockets, overlays and artifacts per run; one controller owns each VM.
+Keep only project-authored guest code, OS-specific tests, build definitions and
+these development contracts here. No host VM controller, harness fixtures,
+submodules, packaging dependencies, deployment scripts or private host settings.
+The external osenv checkout owns VM processes, sockets, logs, captures, recovery
+and deployment. Keep generated output outside this checkout where practical;
+never track it. Do not restore the removed wrapper or harness as a convenience.
 
-Capture output before boot. Use early boot markers, serial diagnostics and a small versioned command/result protocol for guest tests; no external guest agent. Drive VM state through QMP and CPU/memory/breakpoints through GDB's machine interface. Support every boot-stage CPU mode and matching ELF symbols/load addresses. On panic, reset or timeout preserve raw logs, registers, memory and disassembly where available before recovery. Preserve evidence even when capture fails; never wait indefinitely.
+CI permits root development contracts, Makefile/linker definitions, the source
+integrity workflow and C/assembly/linker sources or documentation under boot/,
+kernel/, arch/, include/, src/ and tests/. Extend that boundary only for a concrete
+OS requirement and document its purpose. OS tests must exercise actual OS code;
+external harness fixtures belong in osenv.
 
-Save source/build/image hashes, symbols, tool versions, firmware/machine configuration, test input/seed and verdict per run. Dumps and diagnostics must be readable through the CLI; implement the project's panic format decoder as needed. Failures must be reproducible from saved inputs with one command.
+## OS diagnostic interface
+
+Expose early boot markers, serial diagnostics and a versioned command/result
+protocol in optional debug builds. Keep all guest implementations project-authored;
+no external guest agent. Provide matching ELF symbols and load addresses for every
+boot-stage CPU mode. Describe the actual panic format so the external harness can
+decode it. The OS must be observable without a working guest network.
+
+Use the separate osenv CLI to build/observe/debug/test and preserve evidence before
+recovery. Save source/build/image hashes, symbols, tool versions, firmware/machine
+configuration, inputs/seeds and external verdicts outside this repository.
+Failures must be reproducible from saved inputs. Missing harness functionality
+must be implemented in osenv, never embedded here or faked by guest success text.
 
 ## Tests and completion
 

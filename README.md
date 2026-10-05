@@ -11,7 +11,8 @@ The external development harness lives in [osenv](https://github.com/taka6745/os
 Keep its checkout, sockets, VM disks, captures and private configuration outside
 this repository. Run its fixture gate from that checkout. Once an OS image exists,
 use its manual-image interface with this project's image and ELF; fixture PASS
-must never stand in for OS acceptance. OS build definitions will belong here.
+must never stand in for OS acceptance. OS build definitions will belong here. CI enforces the OS-only file boundary
+defined in AGENTS.md and rejects unrelated tracked files.
 
 [AGENTS.md](AGENTS.md) defines development and real boot acceptance requirements.
 [INTEGRITY.md](INTEGRITY.md) forbids stubs, imported code/dependencies and canned
