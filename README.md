@@ -1,26 +1,25 @@
 # oslab
 
-A minimal, extremely fast OS built from scratch for a homelab VM, developed autonomously through text-based tools.
+A project-authored x86-64 operating system for a dedicated homelab VM.
+Initial target: BIOS, C and assembly, LLVM/LLD and NASM.
 
-- Author all guest boot code, kernel, drivers and runtime for this project. No external guest drivers or services. External compilers and host-side development tools/libraries are permitted.
-- Keep release code small; compile optional diagnostics and tests into separate builds.
-- The agent must build, boot, observe, debug, test and recover the VM without screenshots or a functioning guest network.
-- Measure boot time, image size, memory and workload performance before making speed claims.
+This repository contains only OS source, OS build definitions and OS development
+contracts. The boot chain, kernel and drivers are not implemented yet. No harness
+fixture is shipped here and no OS boot or performance claim is currently made.
 
-[AGENTS.md](AGENTS.md) defines the working contract. The external harness is
-implemented and tested; guest code remains explicitly labelled fixtures. The
-OS boot chain, kernel and drivers are next.
+The external development harness lives in [osenv](https://github.com/taka6745/osenv).
+Keep its checkout, sockets, VM disks, captures and private configuration outside
+this repository. Run its fixture gate from that checkout. Once an OS image exists,
+use its manual-image interface with this project's image and ELF; fixture PASS
+must never stand in for OS acceptance. OS build definitions will belong here.
 
-[TOOLING.md](TOOLING.md) records verified development tools and the readiness check.
+[AGENTS.md](AGENTS.md) defines development and real boot acceptance requirements.
+[INTEGRITY.md](INTEGRITY.md) forbids stubs, imported code/dependencies and canned
+implementations. Audit this repository using the external harness:
 
-The reusable harness is [osenv](https://github.com/taka6745/osenv), pinned as a
-submodule. Run `git submodule update --init --recursive`, then `./dev doctor`
-and `./dev test`. The latter builds, boots, checks assertions, diagnoses a real
-fault, captures hangs/resets and recovers. Use `./dev --help` for all controls;
-see [the debugger guide](tools/osenv/DEBUGGING.md).
+```sh
+python3 -m osenv audit --os-only --repo /absolute/path/to/oslab
+```
 
-Debugging includes register/memory reads and writes, 16/32/64-bit disassembly,
-symbols, additional ELF load addresses, stepping, persistent breakpoints and
-watchpoints, device inspection, traces, writable diagnostic logs, isolated NIC
-controls/pcap and retained disk overlays. Kernel subsystem inspection will be
-added with the corresponding OS services; networking is off in the normal gate.
+Run that command from the external osenv checkout. An audit checks source policy;
+it does not assert that an OS exists or boots.
