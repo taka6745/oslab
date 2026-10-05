@@ -284,7 +284,8 @@ pre-sleep polling retained in compact web builds: paired combined throughput
 Higher ITR slowed throughput; -O2/-O3, REP copies, larger rings and checksum
 unrolling did not justify retention. Current 12,800-byte image SHA256
 c7dd4825473bdbcd471283db1af722b25780342efc87a67e58d2f9e5e7e1e80c.
-Final standard-client/truncation checks passed; wire/integrated checks pending.
+Final standard-client/truncation, production/debug wire, integrated boot/fault/
+recovery, 150,000 sanitizer cases and exact-image packed-boot checks passed.
 Pushed starting OS/harness commits 3d2cb47/a577d08 both passed hosted CI.
 SMP/per-core queues and bonding require new authored subsystems and hardware
 validation; neither is implemented by merely selecting more emulator CPUs.
