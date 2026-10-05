@@ -32,10 +32,13 @@ eb rel8:sum
 48 83 fe 20
 72 rel8:eight
 @sum_blocks
-48 03 07 48 83 d0 00
-48 03 47 08 48 83 d0 00
-48 03 47 10 48 83 d0 00
-48 03 47 18 48 83 d0 00
+; ADD begins a carry chain; ADC consumes each preceding carry in the next word.
+; CF=1 implies RAX<=UINT64_MAX-1, so final ADC0 cannot overflow.
+48 03 07
+48 13 47 08
+48 13 47 10
+48 13 47 18
+48 83 d0 00
 48 83 c7 20
 48 83 ee 20
 48 83 fe 20

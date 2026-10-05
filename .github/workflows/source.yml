@@ -42,7 +42,7 @@ jobs:
           done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
-          HARNESS_COMMIT: 5ed9f2fc92af2f0bfeb3499aa2b4baa5c322e818
+          HARNESS_COMMIT: aae07db70d485e1000cfedf0356691e3aebfc7b7
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -59,7 +59,7 @@ jobs:
           python-version: '3.12'
       - name: Fetch pinned external OS controller
         env:
-          HARNESS_COMMIT: 5ed9f2fc92af2f0bfeb3499aa2b4baa5c322e818
+          HARNESS_COMMIT: aae07db70d485e1000cfedf0356691e3aebfc7b7
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -93,6 +93,18 @@ jobs:
           python3 -m osenv.raw_packed_test --build build/raw-packed --output local/raw-decoder-acceptance > os-raw-decoder-gate.json
           python3 -m osenv raw-size --build build/raw-packed --output local/raw-size > os-raw-size.json
           python3 -m unittest osenv.raw_size_test -v
+      - name: Literal direct-entry CPU metadata and PCI gates
+        run: |
+          cd "$RUNNER_TEMP/osenv"
+          python3 -m osenv raw-build --project "$GITHUB_WORKSPACE" --output build/raw-pvh --packed --pvh > os-raw-pvh-build.json
+          python3 -m osenv.raw_pvh_test --build build/raw-pvh --report local/raw-pvh-boundaries.json --expected-bar 0xc0000000
+          if python3 -m osenv.raw_pvh_test --build build/raw-pvh --report local/raw-pvh-mutant.json --expected-bar 0xc0000000 --mutant-magic; then
+            echo "Missing PVH magic check was not detected"
+            exit 1
+          fi
+          python3 -m osenv web-test --image build/raw-pvh/oslab.img --symbols build/raw-pvh/kernel.elf --boot-kernel build/raw-pvh/pvh.elf --production --minimal-devices > os-raw-pvh-wire.json
+          python3 -m osenv raw-size --build build/raw-pvh --output local/raw-pvh-size > os-raw-pvh-size.json
+          python3 -m unittest osenv.raw_size_test osenv.experiment_test osenv.acceleration_test osenv.capture_storage_test -v
       - name: Retain small OS acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,6 +119,9 @@ jobs:
             ${{ runner.temp }}/osenv/os-raw-packed-gate.json
             ${{ runner.temp }}/osenv/os-raw-decoder-gate.json
             ${{ runner.temp }}/osenv/os-raw-size.json
+            ${{ runner.temp }}/osenv/os-raw-pvh-*.json
+            ${{ runner.temp }}/osenv/local/raw-pvh-*.json
+            ${{ runner.temp }}/osenv/local/raw-pvh-size/**
             ${{ runner.temp }}/osenv/local/raw-packed-acceptance/**/*.json
             ${{ runner.temp }}/osenv/local/raw-decoder-acceptance/**/*.json
             ${{ runner.temp }}/osenv/local/raw-size/**

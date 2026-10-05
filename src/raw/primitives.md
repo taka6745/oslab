@@ -7,8 +7,8 @@ build manifest; this module contains code and response data.
 Prerequisites: readable mapped arguments, mapped destination capacity, zero DF.
 
 - `checksum(RDI=data, RSI=size)` returns the network-order numeric checksum
-  in EAX. Empty input returns 65535. Each 64-bit addition immediately consumes
-  carry; 32-bit and 16-bit folds consume carry before subsequent arithmetic.
+  in EAX. Empty input returns 65535. Each 64-bit carry propagates through a bounded four-word chain and
+  is folded before pointer/count arithmetic; 32-bit and 16-bit folds consume carry before subsequent arithmetic.
   Odd tails read one byte; multiword reads require sufficient remaining size.
 - `transport_checksum(EDI=source, ESI=destination, EDX=protocol,
   RCX=data, R8=size)` uses numeric IPv4 addresses from `include/net.h` and
@@ -58,3 +58,13 @@ vectors, a rejected/restored reciprocal instruction mutant, all zero-fill tails
 retain external evidence and stop their VMs; counter-injection continuity is not
 claimed. Evidence: `osenv/local/t021/reciprocal-gate/report.json`. These are local
 QEMU checks; homelab acceptance is recorded separately for the exact image.
+
+
+T023 replaces eight accumulation instructions per32-byte block with five:
+ADD, three ADC memory operands, final ADC0. Bounds, loads, tails and ABI stay
+unchanged. For arbitrary seed, canonical sum is0 for total0, otherwise
+1+(total-1) modulo(2^64-1); negative zero remains all ones. Carry1 implies the
+last accumulator cannot already be all ones, so final ADC0 cannot overflow.
+Independent integer-oracle corner/seeded checks and actual guarded guest tests
+cover this property. Fewer instructions establish reduced work, not physical
+cycles or a throughput guarantee; matched results are in the raw README.

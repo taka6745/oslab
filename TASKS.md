@@ -434,3 +434,27 @@ CPU-release to complete reply, 137.292 µs client median, 211.209 µs median p99
 Separate probes: kernel entry 48.605 ms, network loop 50.238 ms. Controller launch
 523.398 ms; physical power-on/cycles/Pi serving unmeasured. See src/raw/README.md;
 external osenv local/t022 retains proof, raw samples, graphs and rejected runs.
+
+T023 — Goal: improve real boot/serving through direct entry, checksum/register,
+page-layout, packet initialization and parallel-capacity experiments.
+Interface: isolated literal opcode candidates; external frozen experiment plans.
+Prerequisites: exact T022 image and primary Intel/Xen/QEMU/TCP specifications.
+Acceptance: unchanged body/checks/timeouts, integrated/decoder/direct gates,
+seeded paired measurements and exact-image homelab checks, distinct lifecycle scopes.
+Authored literal PVH metadata/PCI adapters and shorter checksum carry chain;
+no external guest code/compiler/assembler/header or extracted executable bytes.
+Three low-context agents investigated boot, layout and network; a fourth tests
+idle timer wakeups separately. Rejected larger hot-page layout and unconfirmed
+header-clearing/BAR changes stay external. Real guest/oracle negative-zero/carry
+checks, all raw gates,13 decoder cases,19 PVH boundaries and a rejected missing
+magic-check mutant passed. Fresh frozen trial verified100,000 responses:14.998ms
+direct cold full HTTP versus53.084ms BIOS;6519 versus6679RPS, throughput inconclusive
+and slow trial retained. Default BIOS remains available and unchanged in behavior.
+Stream7433 bytes, disk8192 (SHA2c226df8...097d); optionalELF9768 (SHA07e285d7...4218).
+Exact homelab raw/decoder/PVH/wire and1000-response/deadline checks on each route
+passed; matched KVM direct12.820ms/4043RPS, BIOS20.316ms/3984RPS. Powered resume
+3.038ms and same-process snapshot9.960ms include RAM/control/client costs; no
+physical power-on/cache/cycle or arbitrary suspend-recovery claim. Separate VM
+scaling is not SMP. Storage failure retained; sparse capture conservation verified.
+Source audit and36 harness regressions passed. External local/t023 has raw data,
+proofs, comparisons, graphs, rejected candidates and exact-head CI records.

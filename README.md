@@ -88,6 +88,8 @@ python3 -m osenv raw-build --project ../oslab --output build/raw-packed --packed
 python3 -m osenv raw-test --build build/raw-packed --output local/raw-packed-acceptance
 python3 -m osenv.raw_packed_test --build build/raw-packed --output local/raw-decoder-acceptance
 python3 -m osenv raw-size --build build/raw-packed --output local/raw-size
+# Optional literal direct entry; preserves the complete BIOS disk image:
+python3 -m osenv raw-build --project ../oslab --output build/raw-pvh --packed --pvh
 ```
 Fixed setup: x86-64 BIOS, one CPU, root-bus e1000/e1000e with a below4GiB MMIO BAR,
 64-bit HPET at0xfed00000 with10ns period, at least600KiB conventional RAM and a
@@ -99,4 +101,4 @@ CPU exception frames intact; external GDB/QMP can inspect all accessible guest
 memory/registers/devices. Boot16/protected32/kernel32/kernel64 ranges and addresses
 are recorded in the build manifest. Generated images, symbols and evidence stay
 outside this repository. [Raw measurements and validation](src/raw/README.md)
-record the 8,192-byte packed image, scoped minimum proof, timing comparison and exact-image homelab gates.
+record the 8,192-byte packed image, scoped minimum proof, timing comparisons and exact-image homelab gates. Optional [literal PVH entry](src/raw/pvh.md) bypasses disk firmware while retaining the shared kernel and mandatory BIOS acceptance.
