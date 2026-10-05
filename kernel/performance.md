@@ -232,3 +232,66 @@ p99 210–242 µs. Real loss/window/wrap/checksum and five-frame wire gates pass
 Machine configuration is recorded and preserved by reproduce/recover. External
 18 controller gates, 22 unit tests and source audits passed. Physical timing
 and a matched Cloudflare comparison remain unverified.
+
+
+## Optional PVH boot and elapsed time (T019)
+
+Current default production uses LTO/-O3: packed disk 16,384 bytes, kernel
+20,310 bytes, packed payload 14,815 bytes; the sector-rounded unpacked layout
+would be 22,016 bytes. Default image SHA256:
+`51035f4194671ad445e798c8f3668dad6d7dccd73493a3ee0cbaaf4e374da5e8`.
+Earlier sizes/results above describe their respective historical images.
+
+The optional authored [PVH32 adapter](../boot/pvh.md) uses external qboot
+firmware and real loader memory-map metadata. Its descriptor table is copied to
+reserved low memory before kernel BSS clearing. Guarded PCI BAR allocation and
+PIIX3 level-triggered IRQ routing support the declared minimal i440fx board.
+PIT IRQs now cache elapsed time from a validated 64-bit HPET counter; delayed
+interrupt delivery no longer subtracts elapsed time from deadlines. Absence or
+unsupported HPET falls back to PIT ticks. No deadline or integrity check was
+removed.
+
+Final matched one-CPU TCG/NAT runs use headless pc-i440fx-9.2 and e1000e,
+three seeds and 10,000 verified responses per run. Both routes in each pair use
+the same PVH-enabled disk image SHA256
+`2657a899166cdf9771e4c8771bce78cfe7d09b1b43a10f8a5c528e630e17a32f`:
+
+| Pair | BIOS disk | qboot/PVH | qboot/PVH preload |
+| --- | ---: | ---: | ---: |
+| BIOS vs PVH: median reset-release call to full HTTP | 59.23 ms | 21.52 ms | — |
+| BIOS vs PVH: requests/s | 6,573 | 6,465 | — |
+| PVH vs preload: median reset-release call to full HTTP | — | 20.26 ms | 20.05 ms |
+| PVH vs preload: requests/s | — | 6,406 | 6,397 |
+
+PVH removes about 37.7 ms from the first pair's median, with throughput within
+1.7%. Whole controller launch to response still spans 466–518 ms for PVH and
+501–556 ms for BIOS. Serving socket medians span 140–146 µs in that pair;
+captured request-frame to response-frame medians are 20–21 µs. These are
+different timing boundaries. Reset-release includes control RPC and DHCP
+observation polling, followed by externally verified real HTTP. Every run starts
+a fresh reset guest; it does not restore an HTTP-ready OS snapshot.
+
+Preloading the recorded raw kernel at 1 MiB skips adapter payload copying while
+still hashing actual kernel memory. The second pair gives no convincing extra
+boot or serving improvement: ranges overlap and throughput differs by 0.2%.
+It remains an optional experiment. Neither route achieved less than 5 ms.
+
+External osenv retains `local/t019/final-pvh-vs-bios/summary.json`,
+`local/t019/final-preload-vs-pvh/summary.json`, individual captures, source/build
+provenance and verdicts. Full BIOS, packed decoder, both NIC production wire
+gates and nine actual boundary cases per PVH variant passed; source audits passed.
+These local results establish neither physical boot/cycle/cache performance nor
+a matched Cloudflare startup comparison; exact-image homelab validation remains
+unverified.
+
+Contiguous TCP frame construction removes two payload copies. A separate three-run
+O3/Oz comparison measured captured service medians 19/23 µs and aggregate
+6525/6354 requests/s, retaining O3 despite its larger image. Host sanitizer
+tests include 100,000 seeded HPET arithmetic cases against an independent
+128-bit oracle. Forced lost cached ticks recovered with zero observed lag;
+disabling HPET sampling deliberately lagged 535 ms and was rejected.
+
+Exact default production image follow-up (three 10,000-response runs):
+6671 requests/s, reset-release to HTTP median 59.77 ms, warm medians
+136–140 µs, p99 216–239 µs and captured service median 19 µs.
+This is a separate validation, not a matched PVH comparison.

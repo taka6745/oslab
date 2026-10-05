@@ -1,7 +1,7 @@
 # oslab
 
-Project-authored x86-64 BIOS OS with a static HTTP server. All guest code,
-drivers and headers live here; no external guest code or libraries are linked.
+Project-authored x86-64 OS with BIOS disk boot and a static HTTP server.
+All guest code, drivers and headers live here; no external guest code or libraries are linked.
 [INTEGRITY.md](INTEGRITY.md) and [AGENTS.md](AGENTS.md) are mandatory.
 
 ## Build and test
@@ -14,6 +14,7 @@ VMs, logs, captures and private configuration belong there.
 make prod                  # ../osenv/build/oslab-prod
 make debug                 # ../osenv/build/oslab-debug
 make web-debug PROFILE=1   # compact server with diagnostics/profiling
+make pvh-prod              # optional pc-i440fx/qboot route, separate output
 cd ../osenv
 python3 -m osenv project-build --project ../oslab
 python3 -m osenv project-test --project ../oslab
@@ -29,10 +30,12 @@ inspection needs no guest network. `DEBUG=0` alone is not a production build.
 ## Implemented and limited
 
 Two-stage integrity-checked disk boot, long-mode paging, E820 page allocation,
-exceptions, PIC/PIT, PCI and Intel 82540EM/82574 legacy DMA/receive interrupts. Compact
-web builds poll briefly after recent RX activity, then sleep atomically.
+exceptions, PIC/PIT, validated HPET time, PCI and Intel 82540EM/82574 legacy
+DMA/receive interrupts. Compact web builds poll briefly after recent RX activity, then sleep atomically.
 The optional osenv `--nic-model e1000e` selects the emulated 82574; it boots
-faster locally; recent tuning gives comparable serving throughput. See performance results. Authored
+faster locally, with comparable serving throughput. Optional
+[PVH boot](boot/pvh.md) reduces measured reset-release to verified HTTP from
+59.2 to 21.5 ms; complete BIOS disk boot remains mandatory. Authored
 Ethernet/ARP/IPv4/UDP/DHCP/TCP; debug also provides ICMP and DNS A/CNAME/HTTP.
 Device and network configuration comes from actual hardware and packets.
 
@@ -44,12 +47,13 @@ serving until restart or debug renewal. Out-of-order data requires retransmissio
 No IPv6, DNS-over-TCP, jumbo frames, other NIC models, processes, filesystem, kernel
 disk I/O, SMP or hardware acceleration.
 
-Production uses LTO/-Oz, a 16 KiB stack and eight RX/TX descriptors with two
-shared TX buffers. The packed disk image is 12,800 bytes (raw: 14,336).
+Production uses LTO/-O3, a 16 KiB stack and eight RX/TX descriptors with two
+shared TX buffers. The packed disk image is 16,384 bytes (unpacked layout: 22,016).
 [Boot packing](boot/packing.md) changes disk size only; expanded code is identical.
 [Performance](kernel/performance.md) records actual timing, traffic and test
 results; [TASKS.md](TASKS.md) retains implementation history and provenance.
 
+T019 local integrated, loader-boundary and production wire gates passed.
 Local checks exercise disk boot, malformed images, memory exhaustion, faults,
 hangs/recovery, absent devices, DMA errors, packet/HTTP sanitizers and deliberate
 mutants. External clients and packet reconstruction verify actual responses.

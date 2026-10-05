@@ -349,3 +349,22 @@ p99 210–242 µs. Real loss/window/wrap/checksum and five-frame wire gates pass
 Machine configuration is recorded and preserved by reproduce/recover. External
 18 controller gates, 22 unit tests and source audits passed. Physical timing
 and a matched Cloudflare comparison remain unverified.
+
+T019 — Goal: challenge boot/serving across loader, clock, CPU and packet paths.
+Interface: optional authored PVH32 entry, guarded root-bus BAR setup, absolute
+HPET time cached at PIT IRQ, contiguous TCP frames; external restore/clock tools.
+Prerequisites: T018 release, published Xen PVH/Intel PCI/APIC/HPET/QEMU interfaces.
+Acceptance: full BIOS boot remains mandatory; real alternative boot/DHCP/HTTP,
+malformed loader/maps and clock arithmetic, lost-tick deliberate defect, packet
+loss/window/wrap/checksum gates, matched repeated load and source audits.
+Provenance: specifications only and reuse of our own stage2; no imported code.
+Measured: final matched 3×10,000-response BIOS/PVH runs gave median reset-release
+to verified HTTP 59.23/21.52 ms and 6573/6465 requests/s on one-CPU TCG/NAT.
+Preload/PVH repeat gave 20.05/20.26 ms and 6397/6406 requests/s: no convincing
+additional improvement; <5 ms remains unmet. Default LTO/-O3 packed disk is
+16,384 bytes; actual kernel/payload 20,310/14,815 bytes (unpacked layout 22,016).
+Low-memory PVH GDT survives kernel BSS clearing; PIT IRQ caches validated
+absolute HPET time, preserving elapsed deadlines across deferred delivery.
+Local full BIOS 16-case integrated gate, packed decoder, both NIC production wire
+gates, nine actual boundary cases per PVH variant and source audits passed.
+Physical/homelab and Cloudflare comparison remain unverified. Raw runs, hashes, rejected candidates and verdicts stay in osenv.

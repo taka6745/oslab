@@ -22,6 +22,7 @@ int serial_get(void);
 void arch_init(void);
 bool irq_enable(unsigned);
 uint64_t milliseconds(void);
+uint64_t clock_milliseconds(uint64_t count, uint64_t period);
 void idle(void);
 #if OSLAB_PROFILE
 void perf_reset(void);

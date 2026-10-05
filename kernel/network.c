@@ -24,14 +24,17 @@ struct connection {
 static struct connection tcp;
 static char tcp_header[1024];
 static size_t tcp_header_used;
+static void ether_header(uint8_t *frame, const uint8_t *mac, uint16_t type) {
+  memcpy(frame, mac, 6);
+  memcpy(frame + 6, nic_mac, 6);
+  put16(frame + 12, type);
+}
 static bool ether(const uint8_t *mac, uint16_t type, const uint8_t *data,
                   size_t n) {
   uint8_t frame[1514];
   if (n > 1500)
     return false;
-  memcpy(frame, mac, 6);
-  memcpy(frame + 6, nic_mac, 6);
-  put16(frame + 12, type);
+  ether_header(frame, mac, type);
   memcpy(frame + 14, data, n);
   size_t len = 14 + n;
   if (len < 60) {
@@ -101,6 +104,19 @@ static bool arp_resolve(uint32_t ip, uint8_t *mac) {
   }
   return false;
 }
+static void ip_header(uint8_t *data, uint32_t source, uint32_t destination,
+                      uint8_t proto, size_t n) {
+  memset(data, 0, 20);
+  data[0] = 0x45;
+  put16(data + 2, 20 + n);
+  put16(data + 4, ++ip_id);
+  put16(data + 6, 0x4000);
+  data[8] = 64;
+  data[9] = proto;
+  put32(data + 12, source);
+  put32(data + 16, destination);
+  put16(data + 10, checksum(data, 20));
+}
 static bool ip_send_to(uint32_t source, uint32_t destination, uint8_t proto,
                        const uint8_t *p, size_t n, const uint8_t *known_mac) {
   uint8_t data[1500], mac[6];
@@ -112,16 +128,7 @@ static bool ip_send_to(uint32_t source, uint32_t destination, uint8_t proto,
     memcpy(mac, broadcast, 6);
   else if (!configured || !arp_resolve(destination, mac))
     return false;
-  memset(data, 0, 20);
-  data[0] = 0x45;
-  put16(data + 2, 20 + n);
-  put16(data + 4, ++ip_id);
-  put16(data + 6, 0x4000);
-  data[8] = 64;
-  data[9] = proto;
-  put32(data + 12, source);
-  put32(data + 16, destination);
-  put16(data + 10, checksum(data, 20));
+  ip_header(data, source, destination, proto, n);
   memcpy(data + 20, p, n);
   return ether(mac, 0x800, data, n + 20);
 }
@@ -278,9 +285,10 @@ bool net_resolve(const char *host, uint32_t *address) {
 }
 static bool connection_send(struct connection *c, uint8_t flags, uint32_t seq,
                             const uint8_t *data, size_t n) {
-  uint8_t p[1480];
+  uint8_t frame[1514], mac[6];
+  uint8_t *p = frame + 34;
   size_t h = (flags & 2) ? 24 : 20;
-  if (n > sizeof(p) - h)
+  if (n > sizeof(frame) - 34 - h)
     return false;
   memset(p, 0, h);
   put16(p, c->local_port);
@@ -298,8 +306,20 @@ static bool connection_send(struct connection *c, uint8_t flags, uint32_t seq,
   if (n)
     memcpy(p + h, data, n);
   put16(p + 16, transport_checksum(config.address, c->remote, 6, p, h + n));
-  return ip_send_to(config.address, c->remote, 6, p, h + n,
-                    c->mac_known ? c->peer_mac : NULL);
+  if (c->mac_known)
+    memcpy(mac, c->peer_mac, 6);
+  else if (c->remote == 0xffffffff)
+    memcpy(mac, broadcast, 6);
+  else if (!configured || !arp_resolve(c->remote, mac))
+    return false;
+  ip_header(frame + 14, config.address, c->remote, 6, h + n);
+  ether_header(frame, mac, 0x800);
+  size_t len = 34 + h + n;
+  if (len < 60) {
+    memset(frame + len, 0, 60 - len);
+    len = 60;
+  }
+  return nic_send(frame, len);
 }
 static bool tcp_send(uint8_t flags, uint32_t seq, const uint8_t *data,
                      size_t n) {

@@ -18,6 +18,8 @@ struct interrupt_frame {
 extern void *isr_table[48];
 static struct idt_entry idt[256] __attribute__((aligned(16)));
 volatile uint64_t timer_ticks;
+static volatile uint64_t *hpet;
+static uint64_t hpet_period;
 uint64_t milliseconds(void) { return timer_ticks; }
 #if OSLAB_PROFILE
 static uint64_t perf_start, halt_ticks, halt_calls, interrupts;
@@ -92,7 +94,8 @@ void interrupt_dispatch(struct interrupt_frame *f) {
   interrupts++;
 #endif
   if (f->vector == 32)
-    timer_ticks++;
+    timer_ticks = hpet ? clock_milliseconds(hpet[0xf0 / 8], hpet_period)
+                       : timer_ticks + 1;
   else
     nic_interrupt(f->vector - 32);
   if (f->vector >= 40)
@@ -114,6 +117,19 @@ bool irq_enable(unsigned irq) {
   return true;
 }
 void arch_init(void) {
+#if OSLAB_PVH
+  // This single-CPU PIC board does not depend on firmware's LAPIC virtual-wire
+  // initialization. Disable LAPIC/x2APIC before relying on legacy PIC delivery.
+  uint32_t a, b, c, d;
+  __asm__ volatile("cpuid"
+                   : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
+                   : "a"(1), "c"(0));
+  if (d & (1u << 9)) {
+    __asm__ volatile("rdmsr" : "=a"(a), "=d"(d) : "c"(0x1b));
+    a &= ~((1u << 11) | (1u << 10));
+    __asm__ volatile("wrmsr" ::"a"(a), "d"(d), "c"(0x1b) : "memory");
+  }
+#endif
   for (unsigned i = 0; i < 48; i++) {
     uintptr_t p = (uintptr_t)isr_table[i];
     idt[i] = (struct idt_entry){p, 0x18, 0, 0x8e, p >> 16, p >> 32, 0};
@@ -130,6 +146,23 @@ void arch_init(void) {
   out8(0xa1, 1);
   out8(0x21, 0xfe);
   out8(0xa1, 0xff); // NIC unmasks its firmware-assigned IRQ after DMA setup.
+  // Supported PC board HPET location. Absence/32-bit counters fall back to PIT.
+  // Cache elapsed counter time at each PIT IRQ: deferred IRQs cannot lose time.
+  uintptr_t base = 0xfed00000;
+  volatile uint64_t *pd = (void *)(uintptr_t)0x92000;
+  pd[base >> 21] |= 0x18;
+  __asm__ volatile("invlpg (%0)" ::"r"(base) : "memory");
+  volatile uint64_t *clock = (void *)base;
+  uint64_t capabilities = clock[0], period = capabilities >> 32;
+  if ((capabilities & 0xff) && (capabilities & (1u << 13)) && period &&
+      period <= 100000000) {
+    clock[0x10 / 8] &=
+        ~3ull; // retain PIT routing, disable HPET legacy replacement
+    clock[0xf0 / 8] = 0;
+    clock[0x10 / 8] |= 1;
+    hpet_period = period;
+    hpet = clock;
+  }
   // PIT channel 0, mode 2, ~1000 Hz. No firmware timer service after boot.
   out8(0x43, 0x34);
   out8(0x40, 1193 & 255);

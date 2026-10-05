@@ -47,6 +47,101 @@ static void pci_write(unsigned b, unsigned d, unsigned f, unsigned off,
   out32(0xcf8, 0x80000000u | b << 16 | d << 11 | f << 8 | (off & 252));
   out32(0xcfc, value);
 }
+#if OSLAB_PVH
+// Optional pc-i440fx PVH board: root-bus MMIO aperture below chipset/APIC
+// space. Firmware-assigned resources are never moved. Other memory BARs/bridges
+// cause explicit rejection rather than guessing their occupied ranges.
+static bool pvh_irq(unsigned dev, unsigned fn) {
+  unsigned pin = pci_read(0, dev, fn, 0x3c) >> 8 & 255;
+  if (!pin || pin > 4 || !(0xdef8u & (1u << nic_irq_line)) ||
+      pci_read(0, 0, 0, 0) != 0x12378086)
+    return false;
+  for (unsigned d = 0; d < 32; d++)
+    if (pci_read(0, d, 0, 0) == 0x70008086) {
+      // Declared i440fx slot wiring: INTA..D swizzle into PIIX3 PIRQ A..D.
+      unsigned shift = ((dev + pin - 2) & 3) * 8;
+      uint32_t routes = pci_read(0, d, 0, 0x60);
+      routes = (routes & ~(255u << shift)) | nic_irq_line << shift;
+      pci_write(0, d, 0, 0x60, routes);
+      unsigned port = 0x4d0 + nic_irq_line / 8, bit = 1u << (nic_irq_line % 8);
+      out8(port,
+           in8(port) | bit); // PCI INTx requires level-triggered PIC input.
+      return (pci_read(0, d, 0, 0x60) >> shift & 255) == nic_irq_line &&
+             (in8(port) & bit);
+    }
+  return false;
+}
+static bool pvh_bar(unsigned dev, unsigned fn, uint32_t flags,
+                    uint32_t *address) {
+  for (unsigned d = 0; d < 32; d++) {
+    if (pci_read(0, d, 0, 0) == 0xffffffff)
+      continue;
+    unsigned functions = pci_read(0, d, 0, 12) & 0x800000 ? 8 : 1;
+    for (unsigned f = 0; f < functions; f++) {
+      if (pci_read(0, d, f, 0) == 0xffffffff)
+        continue;
+      if ((pci_read(0, d, f, 12) >> 16 & 127) != 0)
+        return false;
+      for (unsigned off = 16; off < 40; off += 4) {
+        uint32_t bar = pci_read(0, d, f, off);
+        if (bar & 1)
+          continue;
+        if (bar & ~15u)
+          return false;
+        if ((bar >> 1 & 3) == 2) {
+          if (off == 36 || pci_read(0, d, f, off + 4))
+            return false;
+          off += 4;
+        } else if (bar >> 1 & 3)
+          return false;
+      }
+    }
+  }
+  uint32_t command = pci_read(0, dev, fn, 4) & 65535;
+  pci_write(0, dev, fn, 4, command & ~3u);
+  pci_write(0, dev, fn, 16, 0xffffffff);
+  uint32_t mask = pci_read(0, dev, fn, 16) & ~15u;
+  pci_write(0, dev, fn, 16, flags);
+  pci_write(0, dev, fn, 4, command);
+  uint32_t size = ~mask + 1;
+  if (!mask || size < 0x20000 || size > 0x200000 || (size & (size - 1)))
+    return false;
+  struct map_record {
+    uint64_t base, size;
+    uint32_t type, attributes;
+  } PACKED;
+  unsigned count = *(volatile uint16_t *)(uintptr_t)0x5000;
+  const struct map_record *map = (const void *)(uintptr_t)0x5010;
+  if (!count || count > 64)
+    return false;
+  uint32_t candidate = 0xc0000000;
+  for (; candidate < 0xe0000000; candidate += size) {
+    bool occupied = false;
+    for (unsigned i = 0; i < count; i++) {
+      uint64_t end = map[i].base + map[i].size;
+      if (end < map[i].base)
+        return false;
+      if (map[i].base < (uint64_t)candidate + size && candidate < end) {
+        occupied = true;
+        break;
+      }
+    }
+    if (!occupied)
+      break;
+  }
+  if (candidate >= 0xe0000000)
+    return false;
+  pci_write(0, dev, fn, 4, command & ~3u);
+  pci_write(0, dev, fn, 16, candidate | flags);
+  bool accepted = (pci_read(0, dev, fn, 16) & ~15u) == candidate;
+  if (!accepted)
+    pci_write(0, dev, fn, 16, flags);
+  pci_write(0, dev, fn, 4, command);
+  if (accepted)
+    *address = candidate;
+  return accepted;
+}
+#endif
 static uint32_t reg(unsigned r) { return mmio[r / 4]; }
 static void write_reg(unsigned r, uint32_t value) {
   mmio[r / 4] = value;
@@ -92,6 +187,12 @@ bool nic_init(void) {
       (type == 2 && pci_read(bus, dev, fn, 20)))
     return false;
   uint32_t address = bar & ~15u;
+#if OSLAB_PVH
+  if (bus || !pvh_irq(dev, fn))
+    return false;
+  if (!address && (type != 0 || !pvh_bar(dev, fn, bar, &address)))
+    return false;
+#endif
   if (!address || address < 0x400000)
     return false;
   // Mark the identity-map huge page containing registers uncacheable (PCD/PWT).

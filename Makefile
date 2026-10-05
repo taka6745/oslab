@@ -87,6 +87,9 @@ host-test: | $(OUT)
 	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -Dmemcpy=os_memcpy -Dmemset=os_memset -Dmemcmp=os_memcmp -Dstrlen=os_strlen -c kernel/runtime.c -o $(OUT)/runtime-host.o
 	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) tests/runtime.c $(OUT)/runtime-host.o -o $(OUT)/runtime-test
 	$(OUT)/runtime-test
+	$(CC) -std=c11 -O2 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -c kernel/clock.c -o $(OUT)/clock-host.o
+	$(CC) -std=c11 -O2 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) tests/clock.c $(OUT)/clock-host.o -o $(OUT)/clock-test
+	$(OUT)/clock-test
 
 # Reject resolved compiler/assembler inputs outside this source repository.
 # Host-test dependencies are deliberately separate and never feed the guest link.
@@ -117,7 +120,7 @@ pi4-bringup: $(OUT)/kernel8.img
 
 .PHONY: web prod debug web-debug
 WEB_LTO ?= 1
-WEB_OPT ?= z
+WEB_OPT ?= 3
 WEB_OUT ?= ../osenv/build/oslab-web
 PROD_OUT ?= ../osenv/build/oslab-prod
 DEBUG_OUT ?= ../osenv/build/oslab-debug
@@ -128,3 +131,35 @@ debug:
 	$(MAKE) all PRODUCTION=0 DEBUG=1 PROFILE=1 AUTOSERVE=0 WEB_ONLY=0 OUT=$(DEBUG_OUT)
 web-debug:
 	$(MAKE) all OPT=$(WEB_OPT) LTO=$(WEB_LTO) PRODUCTION=0 DEBUG=1 PROFILE=1 AUTOSERVE=1 WEB_ONLY=1 RAM_LIMIT=0x4000000ull NIC_RING=8 TX_BUFFERS=2 STACK_BYTES=16384 OUT=$(WEB_OUT)
+
+# Optional PVH32 entry, retaining all mandatory BIOS disk-boot artifacts/checks.
+PVH ?= 0
+PVH_PRELOAD ?= 0
+ifneq ($(PVH_PRELOAD),0)
+ifneq ($(PVH_PRELOAD),1)
+$(error PVH_PRELOAD must be 0 or 1)
+endif
+endif
+override CFLAGS += -DOSLAB_PVH=$(PVH)
+# The embedded kernel.bin is generated solely from check-inputs' authored sources.
+PVH_OUT ?= ../osenv/build/oslab-pvh-prod
+PVH_DEBUG_OUT ?= ../osenv/build/oslab-pvh-debug
+.PHONY: pvh pvh-prod pvh-debug pvh-preload-prod check-pvh-inputs
+$(OUT)/pvh-config: FORCE | $(OUT)
+	$(PYTHON) -c 'from pathlib import Path; p=Path("$@"); value="PVH_PRELOAD=$(PVH_PRELOAD)"; p.write_text(value) if not p.exists() or p.read_text()!=value else None'
+$(OUT)/pvh.o: boot/pvh.asm Makefile $(OUT)/build-config $(OUT)/pvh-config $(OUT)/kernel.bin
+	$(NASM) -DOSLAB_PRODUCTION=$(PRODUCTION) -DKERNEL_PRELOADED=$(PVH_PRELOAD) -f elf32 -g -F dwarf -MD $@.d -D 'KERNEL_FILE="$(OUT)/kernel.bin"' -D "KERNEL_BYTES=$$(wc -c < $(OUT)/kernel.bin)" -D KERNEL_HASH=$$($(PYTHON) -c 'from functools import reduce; print(reduce(lambda h,b:((h^b)*16777619)&0xffffffff,open("$(OUT)/kernel.bin","rb").read(),2166136261))') $< -o $@
+$(OUT)/pvh.elf: $(OUT)/pvh.o boot/pvh.ld
+	$(LD) -m elf_i386 -nostdlib -T boot/pvh.ld $< -o $@
+check-pvh-inputs: check-inputs $(OUT)/pvh.elf
+	$(PYTHON) -c 'from pathlib import Path; import shlex,json,hashlib; root=Path.cwd().resolve(); out=Path("$(OUT)").resolve(); generated=(out/"kernel.bin").resolve(); inputs={Path(n).resolve() for n in shlex.split((out/"pvh.o.d").read_text().replace(chr(92)+chr(10)," ").split(":",1)[1])}; preload=bool($(PVH_PRELOAD)); assert preload or generated in inputs, "PVH missing generated kernel dependency"; source=inputs-{generated}; source.update((root/"boot/pvh.ld",root/"Makefile")); assert source and all(p.is_relative_to(root) for p in source), "external PVH guest source"; assert 0<generated.stat().st_size<=524288, "PVH kernel size"; result={"preload":preload,"sources":json.loads((out/"source-inputs.json").read_text()),"adapter_sources":{str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(source)},"generated_artifacts":{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (generated,out/"kernel.elf",out/"oslab.img",out/"pvh.elf")},"configuration":(out/"build-config").read_text()}; (out/"pvh-inputs.json").write_text(json.dumps(result,indent=2)+"\n"); print("PVH boundary: authored adapter plus generated, source-verified kernel")'
+pvh: all $(OUT)/pvh.elf check-pvh-inputs
+pvh-prod:
+	$(MAKE) pvh PVH=1 OPT=$(WEB_OPT) LTO=$(WEB_LTO) PRODUCTION=1 DEBUG=0 PROFILE=0 AUTOSERVE=1 WEB_ONLY=1 RAM_LIMIT=0x4000000ull NIC_RING=8 TX_BUFFERS=2 STACK_BYTES=16384 OUT=$(PVH_OUT)
+pvh-debug:
+	$(MAKE) pvh PVH=1 PRODUCTION=0 DEBUG=1 PROFILE=1 AUTOSERVE=0 WEB_ONLY=0 OUT=$(PVH_DEBUG_OUT)
+
+# RAM preload is a distinct reset-boot route; the host loads the recorded kernel.
+PRELOAD_OUT ?= ../osenv/build/oslab-pvh-preload
+pvh-preload-prod:
+	$(MAKE) pvh PVH=1 PVH_PRELOAD=1 OPT=$(WEB_OPT) LTO=$(WEB_LTO) PRODUCTION=1 DEBUG=0 PROFILE=0 AUTOSERVE=1 WEB_ONLY=1 RAM_LIMIT=0x4000000ull NIC_RING=8 TX_BUFFERS=2 STACK_BYTES=16384 OUT=$(PRELOAD_OUT)
