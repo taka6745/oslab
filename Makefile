@@ -22,6 +22,27 @@ RAM_LIMIT ?= 0x100000000ull
 NIC_RING ?= 64
 TX_BUFFERS ?= $(NIC_RING)
 STACK_BYTES ?= 32768
+MACHINE ?= 0
+MACHINE_HTTP ?= 0
+MACHINE_HEADERS ?= $(MACHINE_HTTP)
+ifneq ($(MACHINE_HEADERS),0)
+ifneq ($(MACHINE_HEADERS),1)
+$(error MACHINE_HEADERS must be 0 or 1)
+endif
+ifeq ($(MACHINE_HTTP),0)
+$(error MACHINE_HEADERS requires MACHINE_HTTP=1)
+endif
+endif
+ifneq ($(MACHINE_HTTP),0)
+ifneq ($(MACHINE_HTTP),1)
+$(error MACHINE_HTTP must be 0 or 1)
+endif
+endif
+ifneq ($(MACHINE),0)
+ifneq ($(MACHINE),1)
+$(error MACHINE must be 0 or 1)
+endif
+endif
 PYTHON ?= python3.12
 override CFLAGS := --target=x86_64-unknown-none-elf -std=c11 -O$(OPT) -g -ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-pic -mno-red-zone -mgeneral-regs-only -Wall -Wextra -Werror -Iinclude -DOSLAB_PRODUCTION=$(PRODUCTION) -DOSLAB_PROFILE=$(PROFILE) -DOSLAB_DEBUG=$(DEBUG) -DOSLAB_AUTOSERVE=$(AUTOSERVE) -DOSLAB_RAM_LIMIT=$(RAM_LIMIT) -DOSLAB_NIC_RING=$(NIC_RING) -DOSLAB_WEB_ONLY=$(WEB_ONLY) -DOSLAB_TX_BUFFERS=$(TX_BUFFERS)
 ifeq ($(LTO),1)
@@ -31,8 +52,24 @@ ifeq ($(WEB_ONLY),1)
 override CFLAGS += -ffunction-sections -fdata-sections
 GUEST_GC := --gc-sections --defsym=OSLAB_SECTION_ALIGN=64
 endif
+override CFLAGS += -DOSLAB_MACHINE=$(MACHINE) -DOSLAB_MACHINE_HTTP=$(MACHINE_HTTP) -DOSLAB_MACHINE_HEADERS=$(MACHINE_HEADERS)
 CSRC := $(wildcard kernel/*.c)
 OBJ := $(patsubst kernel/%.c,$(OUT)/%.o,$(CSRC)) $(OUT)/entry.o $(OUT)/interrupts.o
+ENTRY_SOURCE := arch/x86_64/entry.asm
+IRQ_SOURCE := arch/x86_64/interrupts.asm
+PVH_SOURCE := boot/pvh.asm
+ifeq ($(MACHINE),1)
+ENTRY_SOURCE := kernel/machine/entry.asm
+IRQ_SOURCE := kernel/machine/interrupts.asm
+PVH_SOURCE := boot/machine/pvh.asm
+OBJ += $(OUT)/machine-hotpath.o
+endif
+ifeq ($(MACHINE_HTTP),1)
+OBJ += $(OUT)/machine-http.o
+endif
+ifeq ($(MACHINE_HEADERS),1)
+OBJ += $(OUT)/machine-headers.o
+endif
 .PHONY: all clean host-test check-inputs FORCE
 all: $(OUT)/oslab.img check-inputs
 $(OUT):
@@ -42,10 +79,16 @@ $(OUT)/build-config: FORCE | $(OUT)
 	$(PYTHON) -c 'from pathlib import Path; p=Path("$@"); value="$(CFLAGS) STACK_BYTES=$(STACK_BYTES) STAGE2_BYTES=$(STAGE2_BYTES) BOOT_COMPRESS=$(BOOT_COMPRESS) GC=$(GUEST_GC)"; p.write_text(value) if not p.exists() or p.read_text()!=value else None'
 $(OUT)/%.o: kernel/%.c $(wildcard include/*.h) Makefile $(OUT)/build-config | $(OUT)
 	$(CC) $(CFLAGS) -MD -MF $@.d -c $< -o $@
-$(OUT)/entry.o: arch/x86_64/entry.asm Makefile $(OUT)/build-config | $(OUT)
-	$(NASM) -f elf64 -g -F dwarf -MD $@.d -DSTACK_BYTES=$(STACK_BYTES) $< -o $@
-$(OUT)/interrupts.o: arch/x86_64/interrupts.asm Makefile $(OUT)/build-config | $(OUT)
-	$(NASM) -f elf64 -g -F dwarf -MD $@.d -DSTACK_BYTES=$(STACK_BYTES) $< -o $@
+$(OUT)/entry.o: $(ENTRY_SOURCE) Makefile $(OUT)/build-config | $(OUT)
+	$(NASM) -w+error -f elf64 -g -F dwarf -MD $@.d -DSTACK_BYTES=$(STACK_BYTES) $< -o $@
+$(OUT)/interrupts.o: $(IRQ_SOURCE) Makefile $(OUT)/build-config | $(OUT)
+	$(NASM) -w+error -f elf64 -g -F dwarf -MD $@.d -DSTACK_BYTES=$(STACK_BYTES) $< -o $@
+$(OUT)/machine-hotpath.o: kernel/machine/hotpath.asm Makefile $(OUT)/build-config | $(OUT)
+	$(NASM) -w+error -f elf64 -g -F dwarf -MD $@.d -DGUEST_EXPORTS=1 $< -o $@
+$(OUT)/machine-http.o: kernel/machine/http.asm Makefile $(OUT)/build-config | $(OUT)
+	$(NASM) -w+error -f elf64 -g -F dwarf -MD $@.d -DGUEST_EXPORTS=1 $< -o $@
+$(OUT)/machine-headers.o: kernel/machine/headers.asm Makefile $(OUT)/build-config | $(OUT)
+	$(NASM) -w+error -f elf64 -g -F dwarf -MD $@.d $< -o $@
 $(OUT)/kernel.elf: $(OBJ) linker.ld
 	$(LD) -m elf_x86_64 -nostdlib $(GUEST_GC) -T linker.ld $(OBJ) -o $@
 $(OUT)/kernel.bin: $(OUT)/kernel.elf
@@ -90,6 +133,34 @@ host-test: | $(OUT)
 	$(CC) -std=c11 -O2 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -c kernel/clock.c -o $(OUT)/clock-host.o
 	$(CC) -std=c11 -O2 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) tests/clock.c $(OUT)/clock-host.o -o $(OUT)/clock-test
 	$(OUT)/clock-test
+
+HOST_ASM_FORMAT := $(if $(filter Darwin,$(shell uname -s)),macho64,elf64)
+.PHONY: machine-host-test machine-prod machine-pvh-prod machine-debug
+machine-host-test: | $(OUT)
+	$(NASM) -f elf64 -DCASE=0 tests/machine/branch.asm -o $(OUT)/machine-branch.o
+	@for case in 1 2 3; do if $(NASM) -f elf64 -DCASE=$$case tests/machine/branch.asm -o $(OUT)/machine-branch-bad.o >$(OUT)/branch-$$case.log 2>&1; then exit 1; fi; done
+	$(NASM) -w+error -f $(HOST_ASM_FORMAT) kernel/machine/hotpath.asm -o $(OUT)/machine-host.o
+	$(CC) -std=c11 -O2 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) tests/machine/hotpath.c $(OUT)/machine-host.o -o $(OUT)/machine-host-test
+	$(OUT)/machine-host-test
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -DOSLAB_MACHINE=1 -Dchecksum=machine_checksum -Dtransport_checksum=machine_transport_checksum kernel/packets.c tests/packets.c $(OUT)/machine-host.o -o $(OUT)/machine-packets-test
+	$(OUT)/machine-packets-test
+	$(NASM) -w+error -f $(HOST_ASM_FORMAT) kernel/machine/http.asm -o $(OUT)/machine-http-host.o
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -Dhttp_select=readable_http_select -c kernel/http.c -o $(OUT)/readable-http-host.o
+	$(NASM) -w+error -f $(HOST_ASM_FORMAT) kernel/machine/headers.asm -o $(OUT)/machine-headers-host.o
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -DOSLAB_MACHINE_HTTP=1 -DOSLAB_MACHINE_HEADERS=1 -c kernel/http.c -o $(OUT)/machine-http-data-host.o
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude tests/machine/http.c $(OUT)/readable-http-host.o $(OUT)/machine-http-data-host.o $(OUT)/machine-http-host.o $(OUT)/machine-headers-host.o -o $(OUT)/machine-http-test
+	$(OUT)/machine-http-test
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -Dhttp_select=machine_http_select tests/http.c $(OUT)/machine-http-data-host.o $(OUT)/machine-http-host.o $(OUT)/machine-headers-host.o -o $(OUT)/machine-http-regression-test
+	$(OUT)/machine-http-regression-test
+MACHINE_OUT ?= ../osenv/build/oslab-machine-prod
+MACHINE_PVH_OUT ?= ../osenv/build/oslab-machine-pvh
+MACHINE_DEBUG_OUT ?= ../osenv/build/oslab-machine-debug
+machine-prod:
+	$(MAKE) prod MACHINE=1 PROD_OUT=$(MACHINE_OUT)
+machine-pvh-prod:
+	$(MAKE) pvh-prod MACHINE=1 PVH_OUT=$(MACHINE_PVH_OUT)
+machine-debug:
+	$(MAKE) debug MACHINE=1 DEBUG_OUT=$(MACHINE_DEBUG_OUT)
 
 # Reject resolved compiler/assembler inputs outside this source repository.
 # Host-test dependencies are deliberately separate and never feed the guest link.
@@ -147,8 +218,8 @@ PVH_DEBUG_OUT ?= ../osenv/build/oslab-pvh-debug
 .PHONY: pvh pvh-prod pvh-debug pvh-preload-prod check-pvh-inputs
 $(OUT)/pvh-config: FORCE | $(OUT)
 	$(PYTHON) -c 'from pathlib import Path; p=Path("$@"); value="PVH_PRELOAD=$(PVH_PRELOAD)"; p.write_text(value) if not p.exists() or p.read_text()!=value else None'
-$(OUT)/pvh.o: boot/pvh.asm Makefile $(OUT)/build-config $(OUT)/pvh-config $(OUT)/kernel.bin
-	$(NASM) -DOSLAB_PRODUCTION=$(PRODUCTION) -DKERNEL_PRELOADED=$(PVH_PRELOAD) -f elf32 -g -F dwarf -MD $@.d -D 'KERNEL_FILE="$(OUT)/kernel.bin"' -D "KERNEL_BYTES=$$(wc -c < $(OUT)/kernel.bin)" -D KERNEL_HASH=$$($(PYTHON) -c 'from functools import reduce; print(reduce(lambda h,b:((h^b)*16777619)&0xffffffff,open("$(OUT)/kernel.bin","rb").read(),2166136261))') $< -o $@
+$(OUT)/pvh.o: $(PVH_SOURCE) Makefile $(OUT)/build-config $(OUT)/pvh-config $(OUT)/kernel.bin
+	$(NASM) -w+error -DOSLAB_PRODUCTION=$(PRODUCTION) -DKERNEL_PRELOADED=$(PVH_PRELOAD) -f elf32 -g -F dwarf -MD $@.d -D 'KERNEL_FILE="$(OUT)/kernel.bin"' -D "KERNEL_BYTES=$$(wc -c < $(OUT)/kernel.bin)" -D KERNEL_HASH=$$($(PYTHON) -c 'from functools import reduce; print(reduce(lambda h,b:((h^b)*16777619)&0xffffffff,open("$(OUT)/kernel.bin","rb").read(),2166136261))') $< -o $@
 $(OUT)/pvh.elf: $(OUT)/pvh.o boot/pvh.ld
 	$(LD) -m elf_i386 -nostdlib -T boot/pvh.ld $< -o $@
 check-pvh-inputs: check-inputs $(OUT)/pvh.elf

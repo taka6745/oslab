@@ -42,7 +42,7 @@ jobs:
           done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
-          HARNESS_COMMIT: 8d0b7e085d7cbe5f1b27b8971e09135e3a42a3b2
+          HARNESS_COMMIT: 5e5aebfdabd72f31780f4bf25db2a2e87aebefdd
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -59,7 +59,7 @@ jobs:
           python-version: '3.12'
       - name: Fetch pinned external OS controller
         env:
-          HARNESS_COMMIT: 8d0b7e085d7cbe5f1b27b8971e09135e3a42a3b2
+          HARNESS_COMMIT: 5e5aebfdabd72f31780f4bf25db2a2e87aebefdd
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -75,10 +75,11 @@ jobs:
           fi
           brew install llvm lld nasm qemu gdb
           brew upgrade llvm lld nasm qemu gdb
-      - name: Host sanitizers, deliberate defect and full disk-boot gate
+      - name: Readable and hand-encoded sanitizers, defects and full disk boot
         run: |
           cd "$RUNNER_TEMP/osenv"
           python3 -m osenv project-test --project "$GITHUB_WORKSPACE" > os-gate.json
+          python3 -m osenv project-test --project "$GITHUB_WORKSPACE" --machine-code --machine-http > os-machine-gate.json
       - name: Retain small OS acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,6 +87,7 @@ jobs:
           name: os-acceptance
           path: |
             ${{ runner.temp }}/osenv/os-gate.json
+            ${{ runner.temp }}/osenv/os-machine-gate.json
             ${{ runner.temp }}/osenv/build/**/build.log
             ${{ runner.temp }}/osenv/build/**/mutation-test.log
             ${{ runner.temp }}/osenv/build/**/manifest.json

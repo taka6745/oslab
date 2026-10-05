@@ -61,10 +61,13 @@ RESPONSE(missing, "HTTP/1.0 404 Not Found", "", "Not found\n");
 RESPONSE(method, "HTTP/1.0 405 Method Not Allowed", "Allow: GET\r\n",
          "GET required\n");
 RESPONSE(invalid, "HTTP/1.0 400 Bad Request", "", "Bad request\n");
+#if !OSLAB_MACHINE_HTTP
 static bool matches(const char *p, size_t n, const char *text) {
   size_t len = strlen(text);
   return n == len && !memcmp(p, text, n);
 }
+#endif
+#if !OSLAB_MACHINE_HEADERS
 static bool named(const char *p, size_t n, const char *name) {
   if (n != strlen(name))
     return false;
@@ -87,7 +90,11 @@ static bool token(char c) {
       return true;
   return false;
 }
+#if OSLAB_MACHINE_HTTP
+bool machine_headers_valid(const char *p, size_t line, size_t end, bool http11) {
+#else
 static bool headers_valid(const char *p, size_t line, size_t end, bool http11) {
+#endif
   bool host = false, length = false;
   for (size_t i = 0; i < line; i++)
     if ((uint8_t)p[i] < 32 || (uint8_t)p[i] > 126)
@@ -134,6 +141,14 @@ static bool headers_valid(const char *p, size_t line, size_t end, bool http11) {
   }
   return !http11 || host;
 }
+#endif
+#if OSLAB_MACHINE_HTTP
+const struct http_response machine_http_responses[4] = {
+    {(const char *)&invalid, sizeof(invalid)},
+    {(const char *)&method, sizeof(method)},
+    {(const char *)&missing, sizeof(missing)},
+    {(const char *)&page, sizeof(page)}};
+#else
 int http_select(const char *p, size_t n, struct http_response *out) {
   if (n > HTTP_REQUEST_LIMIT)
     return -1;
@@ -172,3 +187,4 @@ int http_select(const char *p, size_t n, struct http_response *out) {
   *out = (struct http_response){response, length};
   return 1;
 }
+#endif

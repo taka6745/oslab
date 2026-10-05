@@ -15,7 +15,11 @@ struct interrupt_frame {
   uint64_t r15, r14, r13, r12, r11, r10, r9, r8, rdi, rsi, rbp, rdx, rcx, rbx,
       rax, vector, error, rip, cs, flags, rsp, ss;
 };
+#if OSLAB_MACHINE
+extern uint32_t isr_table[48];
+#else
 extern void *isr_table[48];
+#endif
 static struct idt_entry idt[256] __attribute__((aligned(16)));
 volatile uint64_t timer_ticks;
 static volatile uint64_t *hpet;

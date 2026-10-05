@@ -375,3 +375,24 @@ PVH image passed real wire acceptance with matching recorded qboot firmware in
 a project-owned remote runtime. The external peer's queued-duplicate timing bug
 was corrected and a real GDB window-overwrite defect was rejected. Physical
 performance remains unverified; raw remote evidence and failures stay in osenv.
+
+T020 — Goal: separate hand-encoded machine-code variant, smallest safe instruction
+sequences and fastest verified boot/HTTP, measured against unchanged readable code.
+Interface: optional MACHINE and MACHINE_HTTP builds; authored db/dw/dd entry,
+interrupts, PVH, checksums, memory operations and complete HTTP parsing;
+actual C drivers/TCP/IP/page remain explicit. Fixed low addresses/board are allowed.
+Prerequisites: T019 gates, Intel ISA/NASM/Xen specifications, full real OS image.
+Acceptance: exact-byte/response oracles, protected pages, seeded malformed data,
+deliberate opcode defects, full BIOS/fault/memory/decoder and PVH/IRQ gates,
+alternating matched boot/wire/throughput, native host comparisons and homelab.
+Provenance: our source plus primary specifications only; no extracted/vendor code.
+Results: host guarded-page/differential/mutation gates, 16-case real OS BIOS
+gates for both variants, packed decoder, corrected 11-case PVH, IRQ/clock and
+exact-image homelab wire/1,000-response boundary/timeout checks passed. Initial
+stack-map corruption was caught, retained and fixed with MOV before source copy.
+BIOS raw kernel 17,366 vs 20,310 bytes; disk 14,848 vs 16,384. Readable production
+remains byte-identical. Matched TCG throughput BIOS -1.2%, PVH +1.3%; boot gain
+is inconclusive. Debug/no-LTO load dispatches fell 45.1%, independent counts
+agreed; this does not establish production cycles, caches or physical throughput.
+Native checksum improved; four-byte compact fill was excluded. Evidence and
+graphs remain external under osenv local/t020; whole-OS hundred-bit claims excluded.

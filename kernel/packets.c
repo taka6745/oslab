@@ -1,4 +1,5 @@
 #include "net.h"
+#if !OSLAB_MACHINE
 static uint32_t sum_bytes(uint32_t sum, const uint8_t *p, size_t n) {
   while (n >= 8) {
     sum += be16(p) + be16(p + 2) + be16(p + 4) + be16(p + 6);
@@ -28,6 +29,7 @@ uint16_t transport_checksum(uint32_t src, uint32_t dst, uint8_t proto,
                             (dst & 65535) + proto + (uint16_t)size,
                         data, size));
 }
+#endif
 bool ipv4_parse(const uint8_t *p, size_t n, struct ipv4_view *v) {
   if (n < 20 || (p[0] >> 4) != 4)
     return false;

@@ -15,6 +15,9 @@ make prod                  # ../osenv/build/oslab-prod
 make debug                 # ../osenv/build/oslab-debug
 make web-debug PROFILE=1   # compact server with diagnostics/profiling
 make pvh-prod              # optional pc-i440fx/qboot route, separate output
+make machine-prod MACHINE_HTTP=1 # separate hand-encoded hybrid variant
+make machine-pvh-prod MACHINE_HTTP=1
+make machine-host-test     # raw-byte oracles, guard pages and branch limits
 cd ../osenv
 python3 -m osenv project-build --project ../oslab
 python3 -m osenv project-test --project ../oslab
@@ -61,3 +64,10 @@ These checks do not establish physical throughput or cache residency. Exact
 production and optional PVH images passed dedicated homelab QEMU wire checks;
 production also passed 1,000 response/boundary/timeout tests. [Pi 4 bring-up](arch/aarch64/README.md) works in emulation;
 **Pi Ethernet and serving remain unimplemented.**
+
+Hand-encoded variants retain the readable sources. [Machine code](kernel/machine/README.md)
+covers entry, interrupt stubs/table, checksums, memory operations and complete HTTP
+parsing; [PVH adapter](boot/machine/README.md) is separately encoded too. Drivers,
+TCP/IP, memory management and response data remain project-authored C. These
+optional builds use explicit opcode bytes and checked symbolic relocations,
+with the same safety checks; they do not represent a complete OS in hundreds of bits.
