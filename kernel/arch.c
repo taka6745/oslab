@@ -41,6 +41,16 @@ void perf_report(void) {
 }
 #endif
 void idle(void) {
+#if OSLAB_WEB_ONLY
+  // Catch short packet bursts before sleeping; always bound the polling work.
+  for (unsigned i = 0; i < 32; i++) {
+    if (nic_pending()) {
+      __asm__ volatile("sti" ::: "memory");
+      return;
+    }
+    __asm__ volatile("pause" ::: "memory");
+  }
+#endif
   // Check DMA with interrupts masked, then atomically enable-and-halt. A
   // packet arriving between polling and sleep must not wait for the PIT.
   __asm__ volatile("cli" ::: "memory");

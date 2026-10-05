@@ -29,7 +29,8 @@ inspection needs no guest network. `DEBUG=0` alone is not a production build.
 ## Implemented and limited
 
 Two-stage integrity-checked disk boot, long-mode paging, E820 page allocation,
-exceptions, PIC/PIT, PCI and Intel 82540EM DMA/receive interrupts. Authored
+exceptions, PIC/PIT, PCI and Intel 82540EM DMA/receive interrupts. Compact
+web builds poll briefly before sleeping to catch short packet bursts. Authored
 Ethernet/ARP/IPv4/UDP/DHCP/TCP; debug also provides ICMP and DNS A/CNAME/HTTP.
 Device and network configuration comes from actual hardware and packets.
 

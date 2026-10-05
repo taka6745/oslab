@@ -269,3 +269,22 @@ project-authored text only. Result: README reduced to 55 lines; packing document
 37 -> 26; redundant code comments shortened. Production rebuild remains exactly
 SHA256 51dac8649eee65fcdc0c913cd62fac3db2f033b373b8b8307da998fb30ce23fd.
 No executable code or safety checks removed. Source audit/diff checks passed.
+
+
+T015 — Goal: measure compiler, interrupt moderation and copy-path candidates.
+Interface: existing production TCP80 and externally saved real-image stress.
+Prerequisites: T013 baseline; authored driver; pinned TCG configuration.
+Acceptance: repeated matched measurements, unchanged response/wire correctness,
+relevant actual-image gates for retained guest changes. Provenance: Intel AP-453
+and optimization manual; no reference code imported. Result: 40,000 real requests
+over 20 runs, boundaries and timeout recovery passed. Only bounded 32-iteration
+pre-sleep polling retained in compact web builds: paired combined throughput
+621 -> 1,218 requests/s, median 1.678 -> 0.341/0.353 ms, idle halt fraction
+99.84% -> 98.87% in separate profiling. TCG-only, not physical cache/power data.
+Higher ITR slowed throughput; -O2/-O3, REP copies, larger rings and checksum
+unrolling did not justify retention. Current 12,800-byte image SHA256
+c7dd4825473bdbcd471283db1af722b25780342efc87a67e58d2f9e5e7e1e80c.
+Final standard-client/truncation checks passed; wire/integrated checks pending.
+Pushed starting OS/harness commits 3d2cb47/a577d08 both passed hosted CI.
+SMP/per-core queues and bonding require new authored subsystems and hardware
+validation; neither is implemented by merely selecting more emulator CPUs.

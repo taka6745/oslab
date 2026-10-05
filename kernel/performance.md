@@ -2,7 +2,7 @@
 
 Local QEMU TCG results, 2026-10-05. One qemu64 CPU, 64 MiB RAM,
 pc-i440fx-9.2, isolated NAT, fixed RTC and real-time execution (icount off).
-Toolchain: LLVM/LLD 23.1.2, NASM 3.02, QEMU 11.1.2. Final production image:
+Toolchain: LLVM/LLD 23.1.2, NASM 3.02, QEMU 11.1.2. T013 production image:
 `51dac8649eee65fcdc0c913cd62fac3db2f033b373b8b8307da998fb30ce23fd`.
 External osenv retains hashes, complete socket samples, captures and verdicts.
 
@@ -73,3 +73,51 @@ python3 -m osenv.irq_test --image build/oslab-debug/oslab.img --symbols build/os
 Physical cache misses, link throughput, board boot and exact-image homelab
 validation remain unverified: configured SSH timed out. Emulated Pi bring-up
 passed, but native Pi Ethernet and serving are still unimplemented.
+
+## Hardware/compiler search
+
+T015 compares actual disk images twice in opposite orders, 2,000 seeded requests
+per run, retaining boundaries, malformed traffic and timeout recovery. First set:
+
+| Candidate | Requests/s, two runs | Image bytes | Decision |
+| --- | --- | ---: | --- |
+| Current baseline | 618 / 656 | 12,800 | Keep |
+| ITR=0 | 591 / 658 | 12,800 | No repeatable gain; removes IRQ rate cap |
+| ITR=256 | 506 / 524 | 12,800 | Slower throughput |
+| -O2 | 617 / 574 | 15,872 | No throughput gain |
+| -O3 | 635 / 596 | 16,896 | No throughput gain |
+| REP MOVSB copies | 660 / 620 | 12,800 | No consistent gain |
+
+References: [Intel packet tuning](https://www.intel.com/content/dam/doc/application-note/8255x-8254x-ethernet-controllers-small-packet-traffic-performance-appl-note.pdf),
+[Intel CPU optimization](https://www.intel.com/content/dam/doc/manual/64-ia-32-architectures-optimization-manual.pdf).
+Our candidates are authored here; external experiments and evidence stay in osenv.
+
+Cache prefetch/non-temporal stores need physical PMU/cache validation; ordinary
+[TCG does not model guest caches](https://www.qemu.org/docs/master/devel/multi-thread-tcg.html).
+MMIO remains uncacheable and DMA ordering/fences stay intact. Huge-page mappings,
+DMA alignment and batched RX doorbells already exist. CPU-specific SIMD needs
+feature detection, state initialization and interrupt preservation before use.
+Checksum offload needs authored descriptor handling and independent packet checks;
+software checksums remain enabled. No unsupported offload flag is treated as work.
+
+Per-core serving requires AP startup, APIC routing, independent stacks/connection
+state and bounded queue handoff; share immutable page/code, isolate mutable data
+by cache line. The current driver has one receive ring and no RSS distribution.
+Merely setting QEMU to multiple CPUs cannot implement these requirements.
+Wi-Fi/bonding needs authored device drivers, per-interface addressing, link-failure
+handling and network support. [Ordinary bonding](https://docs.kernel.org/networking/bonding.html)
+generally distributes flows rather than doubling one connection's bandwidth.
+Neither SMP serving nor bonding is currently implemented.
+
+Second matched set (two runs each): baseline 629/614 requests/s, ring32 606/639,
+checksum unroll 642/641, bounded polling 1,257/1,182. Keep the existing ring and
+checksum loop; retain only the 32-iteration PAUSE/descriptor check before sleep
+in compact web builds. Interrupts are not masked for this polling window; the
+original masked DMA check plus atomic STI/HLT remains after it.
+Combined throughput: baseline 621 vs polling 1,218 requests/s; median latency
+1.678 ms vs 0.341/0.353 ms; polling p99 2.812/2.837 ms. Responses and captured
+wire cost are unchanged. Debug idle halt fraction: baseline 99.84%, polling
+98.87%, including ISR time, not physical power/cycles. This is a bounded
+latency/idle tradeoff measured under TCG, not proof of hardware superiority.
+Release image remains 12,800 bytes, SHA256
+`c7dd4825473bdbcd471283db1af722b25780342efc87a67e58d2f9e5e7e1e80c`.
