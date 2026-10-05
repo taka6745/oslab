@@ -368,3 +368,10 @@ absolute HPET time, preserving elapsed deadlines across deferred delivery.
 Local full BIOS 16-case integrated gate, packed decoder, both NIC production wire
 gates, nine actual boundary cases per PVH variant and source audits passed.
 Physical/homelab and Cloudflare comparison remain unverified. Raw runs, hashes, rejected candidates and verdicts stay in osenv.
+
+Homelab follow-up: SSH recovered. Exact default production image passed real
+wire and 1,000-response/boundary/timeout tests in dedicated homelab QEMU; exact
+PVH image passed real wire acceptance with matching recorded qboot firmware in
+a project-owned remote runtime. The external peer's queued-duplicate timing bug
+was corrected and a real GDB window-overwrite defect was rejected. Physical
+performance remains unverified; raw remote evidence and failures stay in osenv.

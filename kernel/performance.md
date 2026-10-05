@@ -295,3 +295,9 @@ Exact default production image follow-up (three 10,000-response runs):
 6671 requests/s, reset-release to HTTP median 59.77 ms, warm medians
 136–140 µs, p99 216–239 µs and captured service median 19 µs.
 This is a separate validation, not a matched PVH comparison.
+
+Homelab follow-up verified the exact production image through the real wire
+gate and 1,000-request boundary/timeout gate in dedicated QEMU, and the exact
+PVH image through the wire gate with matching qboot firmware. Remote timing is
+a separate environment and does not replace the local matched results above.
+This clears emulated homelab acceptance only; physical board testing remains open.

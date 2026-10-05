@@ -57,6 +57,7 @@ T019 local integrated, loader-boundary and production wire gates passed.
 Local checks exercise disk boot, malformed images, memory exhaustion, faults,
 hangs/recovery, absent devices, DMA errors, packet/HTTP sanitizers and deliberate
 mutants. External clients and packet reconstruction verify actual responses.
-These checks do not establish physical throughput or cache residency. Current
-homelab SSH timed out. [Pi 4 bring-up](arch/aarch64/README.md) works in emulation;
+These checks do not establish physical throughput or cache residency. Exact
+production and optional PVH images passed dedicated homelab QEMU wire checks;
+production also passed 1,000 response/boundary/timeout tests. [Pi 4 bring-up](arch/aarch64/README.md) works in emulation;
 **Pi Ethernet and serving remain unimplemented.**
