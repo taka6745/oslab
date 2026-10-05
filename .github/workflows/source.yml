@@ -42,7 +42,7 @@ jobs:
           done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
-          HARNESS_COMMIT: 5e5aebfdabd72f31780f4bf25db2a2e87aebefdd
+          HARNESS_COMMIT: 9c7acee992e24e6f5b6d4a0d34c35e5da18e32e7
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -59,7 +59,7 @@ jobs:
           python-version: '3.12'
       - name: Fetch pinned external OS controller
         env:
-          HARNESS_COMMIT: 5e5aebfdabd72f31780f4bf25db2a2e87aebefdd
+          HARNESS_COMMIT: 9c7acee992e24e6f5b6d4a0d34c35e5da18e32e7
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -80,6 +80,11 @@ jobs:
           cd "$RUNNER_TEMP/osenv"
           python3 -m osenv project-test --project "$GITHUB_WORKSPACE" > os-gate.json
           python3 -m osenv project-test --project "$GITHUB_WORKSPACE" --machine-code --machine-http > os-machine-gate.json
+      - name: Complete hand-encoded OS disk, devices and protocol gate
+        run: |
+          cd "$RUNNER_TEMP/osenv"
+          python3 -m osenv raw-build --project "$GITHUB_WORKSPACE" --output build/raw > os-raw-build.json
+          python3 -m osenv raw-test --build build/raw --output local/raw-acceptance > os-raw-gate.json
       - name: Retain small OS acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,6 +93,9 @@ jobs:
           path: |
             ${{ runner.temp }}/osenv/os-gate.json
             ${{ runner.temp }}/osenv/os-machine-gate.json
+            ${{ runner.temp }}/osenv/os-raw-build.json
+            ${{ runner.temp }}/osenv/os-raw-gate.json
+            ${{ runner.temp }}/osenv/local/raw-acceptance/**/*.json
             ${{ runner.temp }}/osenv/build/**/build.log
             ${{ runner.temp }}/osenv/build/**/mutation-test.log
             ${{ runner.temp }}/osenv/build/**/manifest.json

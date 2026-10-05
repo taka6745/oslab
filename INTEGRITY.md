@@ -42,3 +42,10 @@ These are release-blocking requirements for every contributor and agent.
   every changed function for completeness and provenance. The automated audit
   detects certain violations; it cannot prove originality or semantic correctness.
   A clean audit is not permission to bypass any rule above.
+
+The optional src/raw route contains literal authored instruction/data bytes and
+fixed-width symbolic address fields. The external osenv writer may place those
+bytes, resolve fields and write symbol containers; it may not select instructions,
+compile guest languages, extract compiled implementations or import executable
+code. Reserved BSS carries no disk bytes. This route retains the same source,
+safety, actual-result and evidence requirements as readable builds.

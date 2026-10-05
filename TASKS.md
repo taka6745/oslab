@@ -396,3 +396,21 @@ is inconclusive. Debug/no-LTO load dispatches fell 45.1%, independent counts
 agreed; this does not establish production cycles, caches or physical throughput.
 Native checksum improved; four-byte compact fill was excluded. Evidence and
 graphs remain external under osenv local/t020; whole-OS hundred-bit claims excluded.
+
+T021 — Goal: completely hand-encoded boot-to-HTTP OS, separate from readable OS.
+Interface: src/raw hexadecimal instruction/data sources; external osenv byte
+placement/fixups and ELF symbol containers. No guest compiler, assembler, linker,
+C runtime or imported instruction bytes. BIOS fixed one-CPU e1000/e1000e setup.
+Prerequisites: Intel ISA/device and BIOS specifications; real external packet peer.
+Acceptance: actual disk boot, independently checked HTTP/DHCP/ARP/TCP boundaries,
+faults, corrupt images, missing devices, recovery, matched size/boot/load measurements
+and exact-image homelab verification.
+Provenance: our existing authored algorithms/data and primary specifications;
+instructions authored manually, host writer selects no instructions.
+Results: complete 9,023-byte kernel/9,728-byte disk; local actual-image boot,
+guarded primitives/clock, DMA/IRQ, 61 protocol boundaries and both NIC wire gates
+passed. Dedicated homelab exact image/symbols passed integrated gates and 1,000
+response/boundary/timeout tests. Matched 30,000-response comparison and independent
+instruction counts are in src/raw/README.md. Rejected slow-idle candidate and
+virtual/wall peer-clock mismatch remain external evidence; no guest deadline or
+safety check was weakened. Compression remains an unshipped host experiment.

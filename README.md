@@ -71,3 +71,27 @@ parsing; [PVH adapter](boot/machine/README.md) is separately encoded too. Driver
 TCP/IP, memory management and response data remain project-authored C. These
 optional builds use explicit opcode bytes and checked symbolic relocations,
 with the same safety checks; they do not represent a complete OS in hundreds of bits.
+
+
+The separate `src/raw/` production experiment contains hand-encoded BIOS, CPU,
+PIC/PIT, HPET, NIC, DHCP/ARP/IPv4/TCP and HTTP bytes. Its build uses no guest C,
+compiler, assembler or linker: external osenv places bytes, resolves fixed-width
+addresses and writes separate symbol containers. No compiled instruction bytes
+are extracted. The readable OS stays available independently.
+
+From the external osenv checkout:
+```
+python3 -m osenv raw-build --project ../oslab --output build/raw
+python3 -m osenv raw-test --build build/raw --output local/raw-acceptance
+```
+Fixed setup: x86-64 BIOS, one CPU, root-bus e1000/e1000e with a below4GiB MMIO BAR,
+64-bit HPET at0xfed00000 with10ns period, at least600KiB conventional RAM and a
+usable1–2MiB interval. Unsupported hardware fails explicitly. One connection,
+GET/HEAD, bounded requests, checksums, windows/MSS, retransmission and deadlines;
+no SSH, guest debugger, IPv6, TLS, SMP, filesystem or Pi network driver on this
+route. The readable debug build retains its serial protocol. Raw faults halt with
+CPU exception frames intact; external GDB/QMP can inspect all accessible guest
+memory/registers/devices. Boot16/protected32/kernel32/kernel64 ranges and addresses
+are recorded in the build manifest. Generated images, symbols and evidence stay
+outside this repository. [Raw measurements and validation](src/raw/README.md)
+record the 9,728-byte image, local comparison and exact-image homelab gates.
