@@ -1,47 +1,55 @@
 # Complete hand-encoded server
 
-Every guest instruction in this variant is a literal authored opcode byte.
-The separate osenv writer places bytes, checks fixed-width relocations and emits
-symbols; it selects no instructions and invokes no guest compiler, assembler or
-linker. Readable C/assembly and the earlier hybrid remain separate references.
+Every guest instruction is a literal authored opcode byte. External osenv places
+bytes and fixed-width fields, writes symbols and optionally packs data; no guest
+compiler, assembler, linker or imported executable code is used. Readable sources
+remain separate. The fixed setup and unsupported features are in the root README.
 
-The fixed x86-64 BIOS setup and unsupported features are listed in the root README.
-Boot integrity, actual hardware discovery, packet checksums/bounds, DMA ownership,
-timeouts and explicit failure halts remain mandatory. There is no alternate C
-execution path. External QMP/GDB provides inspection without guest networking.
+T022 disk: **8,192 bytes / 65,536 bits**, SHA256
+`afef5c6cb0699f307bad28bc618c10432aca194afc2d3daa2b151c94b868437e`.
+Decoded kernel: 8,568 bytes. Storage: 512-byte BIOS sector, 187-byte hand-encoded
+adapter, 7,438-byte compressed stream and 55 bytes of sector fill. The unchanged
+website is 1,366 bytes plus 94 HTTP header bytes.
 
-T021 image SHA256:
-`0c59ee67c4bcbe26b603322a6df70e9f8b320ce2e245cfe2c1f47f4a3d246967`.
-Kernel 9,023 bytes; complete disk 9,728 bytes versus readable 16,384 (40.6% smaller).
-The unchanged website body is 1,366 bytes; HTTP headers are 94 bytes.
+The external encoder checks every legal literal/back-reference length with suffix
+dynamic programming. Independent accounting reconstructs every disk byte and
+recomputes its certificate. **65,536 bits is the attained minimum for this exact
+kernel, codec, adapter and BIOS sector layout.** A global shortest equivalent OS
+is unproved. Other kernels, encodings, codecs and loaders can change that bound.
+[Packed interface](packed.md) records the actual decoder contract.
 
-Matched local one-CPU QEMU TCG/NAT, three runs of 10,000 responses per variant:
+Matched one-CPU QEMU 11.1.2 TCG, e1000e, minimal devices, BIOS disk boot,
+five runs of 10,000 verified responses per variant:
 
-| Measurement | Readable | Hand encoded |
+| Measurement | T021 raw baseline | T022 packed |
 | --- | ---: | ---: |
-| Median BIOS release RPC to verified HTTP | 61.48 ms | 53.86 ms |
-| Aggregate responses/second | 6,169 | 6,641 |
-| Median captured request to response | 19 µs | 21 µs |
-| Guest dispatches, separate init/1,000-request profile | 11,450,241 | 7,883,857 |
+| Aggregate requests/second | 6,475 | 6,681 |
+| Median CPU release to complete first HTTP reply | 53.910 ms | 53.543 ms |
+| Median client request completion | 138.418 µs | 137.292 µs |
+| Median per-run client p99 | — | 211.209 µs |
+| Median captured request to response | 21 µs | 19 µs |
 
-Boot includes control RPC and DHCP observation; controller launch is separately
-about 0.5 seconds. Captured service latency is slightly slower despite improved
-aggregate throughput. Earlier matched throughput varied, so the 7.6% result is
-this sample, not a universal speedup. Dispatch counts reconcile with independent
-callbacks; they do not measure physical cycles or cache residency. Isolated
-two-second QEMU idle sampling measured 2.48% of one host CPU, not idle cycles.
+Separate five-run debugger probes: median CPU release to decoded 64-bit kernel
+entry 48.605 ms; network loop 50.238 ms. Median controller launch to first reply
+was 523.398 ms. CPU release begins from QEMU's cold reset state; physical power-on
+was not measured. Client/QMP timing uses checked host clocks; packet intervals use
+QEMU virtual time and are never subtracted from host timestamps. These samples
+establish neither physical cycles/cache residency nor Raspberry Pi performance.
 
-Five TCP frames pass with client ACK/GET/FIN combined; ordinary socket clients
-still use eight. Both NIC wire gates pass loss, zero-window, MSS, sequence wrap,
-FIN and malformed-packet checks. Direct guest tests cover 186 primitives,
-286 clock/zero-fill checks, 61 network boundaries, DMA/IRQ errors, guarded memory,
-deliberate defects, corrupt/truncated boot, absent NIC, faults and hang recovery.
-The exact image and symbols passed dedicated homelab QEMU integrated checks and
-1,000 response/boundary/timeout checks. This is VM verification, not Pi Ethernet
-or physical throughput validation.
+A smaller instruction candidate lost throughput and was rejected. The accepted
+variant retains original HTTP and TCP hot instructions, shorter proven branches,
+cold-init addressing reductions and a smaller fully initialized RAM arena. Bounds,
+checksums, DMA ownership, clock validation, deadlines and terminal faults remain.
 
-Host compression round trips reduced the disk to 6,201 bytes with gzip or 5,816
-with LZMA. Neither is shipped: an authored decoder and its boot/safety cost have
-not been measured. Generated artifacts, rejected candidates, packet captures,
-graphs and full measurements remain in external osenv `local/t021`,
-`local/t021-instructions` and `local/t021-homelab`.
+Local and dedicated homelab exact-image gates passed actual disk boot, guarded
+primitives/clock, DMA/IRQ, 61 protocol boundaries and both NIC wire paths. Thirteen
+actual decoder cases check full kernel expansion, overlap, truncated/invalid
+streams, hashes, output guards and halts. The homelab also passed 1,000 verified
+response/boundary/timeout checks. Five frames require client ACK/request/FIN
+combined; ordinary clients still use eight. No guest SSH or debug service is added.
+
+Generated proofs, per-request samples, captures, rejected candidates and graphs
+remain outside this checkout in osenv `local/t022`; exact homelab evidence is in
+`local/t021-homelab/74037ed4-188c-49c0-ad1c-e1cb693ad259`. T021 measurements remain
+historical external evidence. This is x86 VM validation; Pi networking remains
+unimplemented.

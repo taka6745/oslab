@@ -52,21 +52,11 @@ the connection. One outstanding segment supports five retries at250ms and a
 10-second connection deadline. FIN consumes sequence space and must fit the
 window. The peer's handshake MAC is retained for replies through the same hop.
 
-The current raw BIOS image has 9,023 kernel bytes and 9,728 disk bytes, SHA256
-`0c59ee67c4bcbe26b603322a6df70e9f8b320ce2e245cfe2c1f47f4a3d246967`.
-It passed all 61 actual-guest boundary checks, including malformed DHCP/ARP/IP/TCP,
-checksums, sequence/MSS/window bounds, request overflow, retry budgets and lease
-and connection expiry (`osenv/local/t021/release-gate/network.json`). The same
-image passed real Ethernet peer HTTP reconstruction, segmented/out-of-order
-requests, sequence wrap, zero-window reopening and lost ACK/FIN retransmission
-on both e1000 and e1000e (`osenv/local/t021/release-gate/wire-clock-recheck.json`).
-The readable baseline passed the same peer assertions. The isolated mutant that
-removed IPv4 checksum rejection opened a connection for a corrupt packet; the
-boundary oracle rejected it (`osenv/local/t021/network-mutant.json`). Inputs,
-image/source hashes, seeds, packet captures and GDB/MI traces remain in external
-osenv. The same image subsequently passed dedicated homelab integrated and
-1,000-response checks; see [release measurements](README.md). Later byte changes
-require the relevant gates again.
+The T022 exact packed image passed all 61 actual-guest boundary checks and real
+Ethernet peer HTTP reconstruction on e1000 and e1000e, including segmented and
+out-of-order requests, sequence wrap, zero windows and lost ACK/FIN retransmission.
+The isolated missing IPv4 checksum rejection mutant is rejected. Local/homelab
+results and current image hash are in [release measurements](README.md).
 
 Reusable external boundary gate, from the osenv checkout:
 
@@ -81,15 +71,12 @@ Saved packets and guest memory establish that expiry; the harness correction
 changed no guest deadline or assertion. Deterministic virtual CPU tests remain
 separate (`osenv/local/t021/release-gate/network-clock-mismatch.json`).
 
-The accepted encoding changes shorten 19 conditional branches to rel8 and use
-25 zero-extending 32-bit MOVs for proven low-memory pointers. The network module
-shrinks from 4,317 to 4,119 bytes with the same 934 instructions and no extra
-memory access. Intel's [instruction/architecture manuals](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
-define the short displacement and register zero-extension. The fixed writer
-checked every rel8 range; independent NDISASM decoding compared all instruction
-meanings and control-flow targets. Original/candidate bytes, addresses and deltas
-are in `osenv/local/t021/network-encoding-candidate.json`. The current image's
-execution gates above include these changes.
+T022 shortens proven in-range branches and cold DHCP addressing. The TCP receiver's
+original hot instructions were retained after matched throughput tests rejected a
+smaller addressing variant. The external writer validates every displacement;
+independent disassembly and real-image tests check control flow and outcomes.
+No packet checks or deadlines were removed. Candidate bytes and comparisons stay
+outside this checkout under osenv/local/t022.
 
 This is production-only: no outbound client, ICMP, DNS, IPv6, debug protocol,
 keep-alive, parallel connections, TCP window scaling or early renewal.

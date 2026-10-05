@@ -414,3 +414,23 @@ response/boundary/timeout tests. Matched 30,000-response comparison and independ
 instruction counts are in src/raw/README.md. Rejected slow-idle candidate and
 virtual/wall peer-clock mismatch remain external evidence; no guest deadline or
 safety check was weakened. Compression remains an unshipped host experiment.
+
+T022 — Goal: exact placed-bit accounting and smaller complete raw server.
+Interface: literal guest bytes; external accounting and CPU-release/client timing.
+Prerequisites: unchanged page/protocol/safety contract, fixed BIOS/NIC/HPET setup.
+Acceptance: reconstruct every source/image bit, state the proven minimum family;
+manually shorten actual instructions without external code or lost checks; run
+actual-image fault/boundary/wire gates and matched boot/request measurements.
+Provenance: three agents authored accounting/optimal codec, network encodings and
+runtime/decoder bytes; primary ISA/device documentation and our own algorithms.
+Results: 8,568-byte decoded kernel; 8,192-byte disk. Every placed byte reconstructed;
+7,438-byte optimal stream plus 187-byte adapter, 512-byte BIOS and 55-byte fill.
+The attained 65,536-bit minimum is limited to this kernel/codec/loader/layout.
+Local and exact-image homelab boot, primitive/clock, DMA/IRQ, 61 protocol-boundary,
+both NIC wire gates and 1,000 homelab responses passed; decoder guards/invalid
+streams tested on actual disks. Smaller hot-path variants lost throughput and
+were rejected. Five matched 10,000-response runs measured 6,681 RPS, 53.543 ms
+CPU-release to complete reply, 137.292 µs client median, 211.209 µs median p99.
+Separate probes: kernel entry 48.605 ms, network loop 50.238 ms. Controller launch
+523.398 ms; physical power-on/cycles/Pi serving unmeasured. See src/raw/README.md;
+external osenv local/t022 retains proof, raw samples, graphs and rejected runs.

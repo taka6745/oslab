@@ -30,16 +30,16 @@ FA F4 EB FC
 @raw_entry
 FA FC 66 B8 10 00 8E D8 8E C0 8E D0
 48 C7 C4 00 F0 1F 00
-; Clear fixed DMA/network state and IDT arena before any device accesses.
-BF 00 00 18 00 31 C0 B9 00 00 01 00 F3 48 AB
+; Clear through the end of fixed IDT/DMA/network state, not unused stack RAM.
+BF 00 00 18 00 31 C0 B9 00 42 00 00 F3 48 AB
 ; Build all256 interrupt gates to terminal fault handler, no silent reset.
 BF 00 00 1A 00 B9 00 01 00 00
-48 B8 abs64:raw_fault
+; Writer bounds all text to0x100000..0x10fdff: gate middle=0x10, upper=0.
+; High gate qword remains zero from the arena clear above.
+BA abs32:raw_fault 0F B7 C2
+48 BA 00 00 18 00 00 8E 10 00 48 09 D0
 @raw_idt_next
-66 89 07 66 C7 47 02 18 00 66 C7 47 04 00 8E
-48 89 C2 48 C1 EA 10 66 89 57 06
-48 C1 EA 10 89 57 08 C7 47 0C 00 00 00 00
-48 83 C7 10 E2 rel8:raw_idt_next
+48 AB 48 83 C7 08 E2 rel8:raw_idt_next
 0F 01 1D rel32:raw_idtr
 E8 rel32:nic_init 85 C0 74 rel8:raw_fault
 E8 rel32:net_init

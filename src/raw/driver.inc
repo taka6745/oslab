@@ -1,6 +1,6 @@
 ; All instruction bytes authored directly; Intel SDM encoding and 82574 registers.
 .section text
-.org 100cd0
+.org 100cb0
 @clock_init
 b9 00 00 d0 fe
 48 8b 01
@@ -50,10 +50,11 @@ ef
 ef
 c3
 @nic_init
-53 41 54 41 55
+; RBP is preserved MMIO base; avoids high-register/SIB bytes at disp32 offsets.
+53 55 41 55
 bb 00 01 18 00
-45 31 e4
-4c 89 63 08
+31 ed
+48 89 6b 08
 e8 rel32:clock_init
 85 c0
 0f 84 rel32:nic_init_bad
@@ -77,7 +78,7 @@ a8 01
 0f 85 rel32:nic_init_bad
 89 c1
 83 e1 06
-83 f9 00
+85 c9
 74 rel8:nic_bar_ok
 83 f9 04
 0f 85 rel32:nic_init_bad
@@ -92,7 +93,7 @@ e8 rel32:pci_read
 83 e0 f0
 3d 00 00 00 c0
 0f 82 rel32:nic_init_bad
-41 89 c4
+89 c5
 44 89 c8
 83 c8 3c
 e8 rel32:pci_read
@@ -107,17 +108,17 @@ e8 rel32:pci_read
 44 89 c8
 83 c8 04
 e8 rel32:pci_write
-41 c7 84 24 d8 00 00 00 ff ff ff ff
+c7 85 d8 00 00 00 ff ff ff ff
 31 c9 ; ECX scratch; reuse zero for disabled RCTL/TCTL dword stores
-41 89 8c 24 00 01 00 00
-41 89 8c 24 00 04 00 00
-41 8b 04 24
+89 8d 00 01 00 00
+89 8d 00 04 00 00
+8b 45 00
 0d 00 00 00 04
-41 89 04 24
+89 45 00
 e8 rel32:clock_ms
 4c 8d 68 64
 @nic_reset_wait
-41 f7 04 24 00 00 00 04
+f7 45 00 00 00 00 04
 74 rel8:nic_reset_done
 e8 rel32:clock_ms
 4c 39 e8
@@ -125,12 +126,12 @@ e8 rel32:clock_ms
 f3 90
 eb rel8:nic_reset_wait
 @nic_reset_done
-41 c7 84 24 d8 00 00 00 ff ff ff ff
-41 8b 84 24 c0 00 00 00
-41 83 0c 24 40
-41 8b 84 24 00 54 00 00
+c7 85 d8 00 00 00 ff ff ff ff
+8b 85 c0 00 00 00
+83 4d 00 40
+8b 85 00 54 00 00
 89 03
-41 8b 84 24 04 54 00 00
+8b 85 04 54 00 00
 66 89 43 04
 a9 00 00 00 80
 0f 84 rel32:nic_init_bad
@@ -151,41 +152,41 @@ b9 08 00 00 00
 48 89 07
 48 89 97 80 00 00 00
 c6 87 8c 00 00 00 01
-48 05 00 08 00 00
-48 81 c2 00 08 00 00
-48 83 c7 10
+05 00 08 00 00
+81 c2 00 08 00 00
+83 c7 10
 ff c9
 75 rel8:nic_ring_init
 31 c9
 @nic_mta
-41 c7 84 8c 00 52 00 00 00 00 00 00
+c7 84 8d 00 52 00 00 00 00 00 00
 ff c1
 81 f9 80 00 00 00
 72 rel8:nic_mta
 31 c9 ; MTA loop done; shared zero for MMIO/state dword stores
-41 c7 84 24 00 28 00 00 00 10 18 00
-41 89 8c 24 04 28 00 00
-41 c7 84 24 08 28 00 00 80 00 00 00
-41 89 8c 24 10 28 00 00
-41 c7 84 24 18 28 00 00 07 00 00 00
-41 c7 84 24 00 38 00 00 80 10 18 00
-41 89 8c 24 04 38 00 00
-41 c7 84 24 08 38 00 00 80 00 00 00
-41 89 8c 24 10 38 00 00
-41 89 8c 24 18 38 00 00
-41 c7 84 24 10 04 00 00 0a 20 60 00
-41 c7 84 24 00 04 00 00 fa 00 04 00
-41 c7 84 24 00 01 00 00 02 80 00 04
-41 89 8c 24 20 28 00 00
-41 89 8c 24 2c 28 00 00
-41 c7 84 24 c4 00 00 00 40 00 00 00
+c7 85 00 28 00 00 00 10 18 00
+89 8d 04 28 00 00
+c7 85 08 28 00 00 80 00 00 00
+89 8d 10 28 00 00
+c7 85 18 28 00 00 07 00 00 00
+c7 85 00 38 00 00 80 10 18 00
+89 8d 04 38 00 00
+c7 85 08 38 00 00 80 00 00 00
+89 8d 10 38 00 00
+89 8d 18 38 00 00
+c7 85 10 04 00 00 0a 20 60 00
+c7 85 00 04 00 00 fa 00 04 00
+c7 85 00 01 00 00 02 80 00 04
+89 8d 20 28 00 00
+89 8d 2c 28 00 00
+c7 85 c4 00 00 00 40 00 00 00
 89 4b 10
 89 4b 14
 89 4b 18
 e8 rel32:clock_ms
 4c 8d a8 b8 0b 00 00
 @nic_link_wait
-41 f7 44 24 08 02 00 00 00
+f7 45 08 02 00 00 00
 75 rel8:nic_init_good
 e8 rel32:clock_ms
 4c 39 e8
@@ -193,13 +194,13 @@ e8 rel32:clock_ms
 f3 90
 eb rel8:nic_link_wait
 @nic_init_good
-4c 89 63 08
+48 89 6b 08
 b8 01 00 00 00
 eb rel8:nic_init_end
 @nic_init_bad
 31 c0
 @nic_init_end
-41 5d 41 5c 5b c3
+41 5d 5d 5b c3
 @nic_pending
 8b 04 25 10 01 18 00
 c1 e0 04

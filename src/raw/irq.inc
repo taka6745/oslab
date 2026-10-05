@@ -1,18 +1,17 @@
 ; Authored instruction bytes; Intel SDM interrupt gate/IRETQ formats.
 .section text
-.org 102218
+.org 102078
 @irq_init
 FA 53
 8B 1C 25 1C 01 18 00
-83 FB 03 0F 82 rel32:irq_init_bad
-83 FB 10 0F 83 rel32:irq_init_bad
+83 FB 03 72 rel8:irq_init_bad
+83 FB 10 73 rel8:irq_init_bad
 BF 00 02 1A 00 B9 10 00 00 00
-48 B8 abs64:raw_irq
+; Text writer bounds imply middle0x10 and upper0; arena clear supplied upperqwords.
+BA abs32:raw_irq 0F B7 C2
+48 BA 00 00 18 00 00 8E 10 00 48 09 D0
 @irq_gate_next
-66 89 07 66 C7 47 02 18 00 66 C7 47 04 00 8E
-48 89 C2 48 C1 EA 10 66 89 57 06
-48 C1 EA 10 89 57 08 C7 47 0C 00 00 00 00
-48 83 C7 10 E2 rel8:irq_gate_next
+48 AB 48 83 C7 08 E2 rel8:irq_gate_next
 ; PIC ICW1, vector bases32/40, slave wiringIRQ2, 8086 mode.
 B0 FF E6 21 E6 A1
 B0 11 E6 20 E6 A0
@@ -44,7 +43,7 @@ B0 20 E6 A0 E6 20
 FA 48 83 EC 08
 E8 rel32:nic_pending
 48 83 C4 08 85 C0
-0F 85 rel32:idle_return
+75 rel8:idle_return
 48 8B 05 rel32:net_state
 48 2B 04 25 28 01 18 00 48 83 F8 02
 72 rel8:idle_return
