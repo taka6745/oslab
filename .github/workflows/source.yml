@@ -42,9 +42,53 @@ jobs:
           done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
-          HARNESS_COMMIT: 7999656e7e6701ec83cea5aaf12a4c8ca90111b8
+          HARNESS_COMMIT: 8d0b7e085d7cbe5f1b27b8971e09135e3a42a3b2
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
       - name: Audit OS source boundary and integrity
         run: PYTHONPATH="$RUNNER_TEMP/osenv" python3 -m osenv audit --os-only --repo "$GITHUB_WORKSPACE"
+
+  boot:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch pinned external OS controller
+        env:
+          HARNESS_COMMIT: 8d0b7e085d7cbe5f1b27b8971e09135e3a42a3b2
+        run: |
+          git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
+          git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
+      - name: Install pinned-build tools
+        run: |
+          brew update
+          if brew list --versions openssl@1.1 >/dev/null 2>&1; then
+            brew unlink openssl@1.1
+          fi
+          openssl_link="$(brew --prefix)/bin/openssl"
+          if [ -L "$openssl_link" ] && [ "$(readlink "$openssl_link")" = "$(brew --prefix)/opt/openssl@1.1/bin/openssl" ]; then
+            rm "$openssl_link"
+          fi
+          brew install llvm lld nasm qemu gdb
+          brew upgrade llvm lld nasm qemu gdb
+      - name: Host sanitizers, deliberate defect and full disk-boot gate
+        run: |
+          cd "$RUNNER_TEMP/osenv"
+          python3 -m osenv project-test --project "$GITHUB_WORKSPACE" > os-gate.json
+      - name: Retain small OS acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: os-acceptance
+          path: |
+            ${{ runner.temp }}/osenv/os-gate.json
+            ${{ runner.temp }}/osenv/build/**/build.log
+            ${{ runner.temp }}/osenv/build/**/mutation-test.log
+            ${{ runner.temp }}/osenv/build/**/manifest.json
+            ${{ runner.temp }}/osenv/runs/**/serial.log
+            ${{ runner.temp }}/osenv/runs/**/status.json
+            ${{ runner.temp }}/osenv/runs/**/capture.json

@@ -1,0 +1,189 @@
+#include "net.h"
+#include "x86.h"
+// Intel 82540EM legacy 16-byte DMA descriptors. No external driver code.
+#define RING 64
+#define BUFFER 2048
+struct rx_desc {
+  uint64_t address;
+  uint16_t length, checksum;
+  uint8_t status, errors;
+  uint16_t special;
+} PACKED;
+struct tx_desc {
+  uint64_t address;
+  uint16_t length;
+  uint8_t cso, command, status, css;
+  uint16_t special;
+} PACKED;
+_Static_assert(sizeof(struct rx_desc) == 16, "RX layout");
+_Static_assert(sizeof(struct tx_desc) == 16, "TX layout");
+static volatile uint32_t *mmio;
+static volatile struct rx_desc *rx;
+static volatile struct tx_desc *tx;
+static uint8_t *rx_data, *tx_data;
+static unsigned rx_head, tx_tail;
+struct nic_stats nic_stats;
+uint8_t nic_mac[6];
+static uint32_t pci_read(unsigned b, unsigned d, unsigned f, unsigned off) {
+  out32(0xcf8, 0x80000000u | b << 16 | d << 11 | f << 8 | (off & 252));
+  return in32(0xcfc);
+}
+static void pci_write(unsigned b, unsigned d, unsigned f, unsigned off,
+                      uint32_t value) {
+  out32(0xcf8, 0x80000000u | b << 16 | d << 11 | f << 8 | (off & 252));
+  out32(0xcfc, value);
+}
+static uint32_t reg(unsigned r) { return mmio[r / 4]; }
+static void write_reg(unsigned r, uint32_t value) {
+  mmio[r / 4] = value;
+  barrier();
+  (void)reg(8);
+}
+bool nic_link(void) { return mmio && (reg(8) & 2); }
+bool nic_init(void) {
+  unsigned bus = 0, dev = 0, fn = 0;
+  bool found = false;
+  for (unsigned b = 0; b < 256 && !found; b++)
+    for (unsigned d = 0; d < 32 && !found; d++) {
+      uint32_t id = pci_read(b, d, 0, 0);
+      if (id == 0xffffffff)
+        continue;
+      unsigned funcs = pci_read(b, d, 0, 12) & 0x800000 ? 8 : 1;
+      for (unsigned f = 0; f < funcs; f++)
+        if (pci_read(b, d, f, 0) == 0x100e8086) {
+          bus = b;
+          dev = d;
+          fn = f;
+          found = true;
+          break;
+        }
+    }
+  if (!found)
+    return false;
+  uint32_t bar = pci_read(bus, dev, fn, 16);
+  if ((bar & 1) || ((bar >> 1) & 3) != 0)
+    return false;
+  uint32_t address = bar & ~15u;
+  if (!address || address < 0x400000)
+    return false;
+  // Mark the identity-map huge page containing registers uncacheable (PCD/PWT).
+  volatile uint64_t *pd = (void *)(uintptr_t)0x92000;
+  pd[address >> 21] |= 0x18;
+  __asm__ volatile("invlpg (%0)" ::"r"((uintptr_t)address) : "memory");
+  mmio = (void *)(uintptr_t)address;
+  uint32_t command = pci_read(bus, dev, fn, 4);
+  pci_write(bus, dev, fn, 4, (command & 65535) | 6u);
+  write_reg(0xd8, 0xffffffff);
+  write_reg(0x100, 0);
+  write_reg(0x400, 0);
+  write_reg(0, reg(0) | (1u << 26));
+  uint64_t deadline = milliseconds() + 100;
+  while (reg(0) & (1u << 26)) {
+    if (milliseconds() >= deadline) {
+      mmio = NULL;
+      return false;
+    }
+    idle();
+  }
+  write_reg(0xd8, 0xffffffff);
+  (void)reg(0xc0);
+  write_reg(0, reg(0) |
+                   (1u << 6)); // SLU: negotiate link, preserve device defaults.
+  uint32_t low = reg(0x5400), high = reg(0x5404);
+  for (unsigned i = 0; i < 4; i++)
+    nic_mac[i] = low >> (i * 8);
+  nic_mac[4] = high;
+  nic_mac[5] = high >> 8;
+  if (!(high & (1u << 31)) || (nic_mac[0] & 1)) {
+    mmio = NULL;
+    return false;
+  }
+  rx = pages_alloc(1);
+  tx = pages_alloc(1);
+  rx_data = pages_alloc(RING * BUFFER / 4096);
+  tx_data = pages_alloc(RING * BUFFER / 4096);
+  if (!rx || !tx || !rx_data || !tx_data)
+    panic("nic-dma-memory");
+  for (unsigned i = 0; i < RING; i++) {
+    rx[i].address = (uintptr_t)(rx_data + i * BUFFER);
+    tx[i].address = (uintptr_t)(tx_data + i * BUFFER);
+    tx[i].status = 1;
+  }
+  for (unsigned i = 0; i < 128; i++)
+    write_reg(0x5200 + i * 4, 0);
+  write_reg(0x2800, (uintptr_t)rx);
+  write_reg(0x2804, 0);
+  write_reg(0x2808, RING * 16);
+  write_reg(0x2810, 0);
+  write_reg(0x2818, RING - 1);
+  write_reg(0x3800, (uintptr_t)tx);
+  write_reg(0x3804, 0);
+  write_reg(0x3808, RING * 16);
+  write_reg(0x3810, 0);
+  write_reg(0x3818, 0);
+  write_reg(0x410, 10 | 8 << 10 | 6 << 20); // TIPG for copper legacy MAC.
+  write_reg(0x400, 2 | 8 | 15 << 4 |
+                       64 << 12); // EN, PSP, collision threshold/distance.
+  write_reg(
+      0x100,
+      2 | (1u << 15) |
+          (1u << 26)); // EN, broadcast accept, strip CRC, 2048-byte buffers.
+  puts_os("OSL1 NIC driver=e1000");
+  field("pci_bus", bus);
+  field("pci_device", dev);
+  field("ring", RING);
+  putc_os('\n');
+  deadline = milliseconds() + 3000;
+  while (!nic_link() && milliseconds() < deadline)
+    idle();
+  return nic_link();
+}
+bool nic_send(const uint8_t *data, size_t size) {
+  if (!mmio || size > 1514 || size < 14)
+    return false;
+  volatile struct tx_desc *d = &tx[tx_tail];
+  if (!(d->status & 1)) {
+    nic_stats.tx_full++;
+    return false;
+  }
+  memcpy(tx_data + tx_tail * BUFFER, data, size);
+  d->length = size;
+  d->cso = 0;
+  d->css = 0;
+  d->special = 0;
+  d->status = 0;
+  d->command = 1 | 2 | 8; // EOP, insert Ethernet FCS, report completion.
+  __asm__ volatile("sfence" ::: "memory");
+  tx_tail = (tx_tail + 1) % RING;
+  write_reg(0x3818, tx_tail);
+  nic_stats.tx_packets++;
+  nic_stats.tx_bytes += size;
+  return true;
+}
+void nic_poll(void (*receive)(const uint8_t *, size_t)) {
+  if (!mmio)
+    return;
+  unsigned returned = 0, tail = rx_head;
+  for (unsigned batch = 0; batch < RING; batch++) {
+    volatile struct rx_desc *d = &rx[rx_head];
+    if (!(d->status & 1))
+      break;
+    barrier();
+    size_t len = d->length;
+    if (d->errors || !(d->status & 2) || len < 14 || len > 1514)
+      nic_stats.rx_errors++;
+    else {
+      nic_stats.rx_packets++;
+      nic_stats.rx_bytes += len;
+      receive(rx_data + rx_head * BUFFER, len);
+    }
+    d->status = 0;
+    barrier();
+    tail = rx_head;
+    returned++;
+    rx_head = (rx_head + 1) % RING;
+  }
+  // Return a whole processed batch with one MMIO doorbell/flush.
+  if (returned)
+    write_reg(0x2818, tail);
+}

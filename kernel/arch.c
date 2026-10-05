@@ -1,0 +1,68 @@
+#include "os.h"
+#include "x86.h"
+struct idt_entry {
+  uint16_t low, selector;
+  uint8_t ist, type;
+  uint16_t middle;
+  uint32_t high, zero;
+} PACKED;
+struct idtr {
+  uint16_t limit;
+  uint64_t address;
+} PACKED;
+struct interrupt_frame {
+  uint64_t r15, r14, r13, r12, r11, r10, r9, r8, rdi, rsi, rbp, rdx, rcx, rbx,
+      rax, vector, error, rip, cs, flags, rsp, ss;
+};
+extern void *isr_table[48];
+static struct idt_entry idt[256] __attribute__((aligned(16)));
+volatile uint64_t timer_ticks;
+uint64_t milliseconds(void) { return timer_ticks; }
+void idle(void) { __asm__ volatile("sti; hlt" ::: "memory"); }
+void interrupt_dispatch(struct interrupt_frame *f) {
+  if (f->vector < 32) {
+    __asm__ volatile("cli");
+    puts_os("OSL1 PANIC");
+    field("vector", f->vector);
+    field("error", f->error);
+    puts_os(" rip=0x");
+    number(f->rip, 16);
+    puts_os(" rsp=0x");
+    number(f->rsp, 16);
+    uint64_t cr2;
+    __asm__ volatile("mov %%cr2,%0" : "=r"(cr2));
+    puts_os(" cr2=0x");
+    number(cr2, 16);
+    putc_os('\n');
+    for (;;)
+      __asm__ volatile("hlt");
+  }
+  if (f->vector == 32)
+    timer_ticks++;
+  if (f->vector >= 40)
+    out8(0xa0, 0x20);
+  out8(0x20, 0x20);
+}
+void arch_init(void) {
+  for (unsigned i = 0; i < 48; i++) {
+    uintptr_t p = (uintptr_t)isr_table[i];
+    idt[i] = (struct idt_entry){p, 0x18, 0, 0x8e, p >> 16, p >> 32, 0};
+  }
+  struct idtr r = {sizeof(idt) - 1, (uintptr_t)idt};
+  __asm__ volatile("lidt %0" ::"m"(r));
+  out8(0x20, 0x11);
+  out8(0xa0, 0x11);
+  out8(0x21, 32);
+  out8(0xa1, 40);
+  out8(0x21, 4);
+  out8(0xa1, 2);
+  out8(0x21, 1);
+  out8(0xa1, 1);
+  out8(0x21, 0xfe);
+  out8(0xa1, 0xff); // Only PIT; NIC uses bounded ring polling initially.
+  // PIT channel 0, mode 2, ~1000 Hz. No firmware timer service after boot.
+  out8(0x43, 0x34);
+  out8(0x40, 1193 & 255);
+  out8(0x40, 1193 >> 8);
+  __asm__ volatile("sti");
+}
