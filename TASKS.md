@@ -324,3 +324,19 @@ Counter totals agree independently. Both NIC wire suites, integrated boot/fault/
 recovery, decoder, sanitizer/oracle/guard-page and deliberate-defect checks passed.
 Source audits, 18 external harness gates and 15 unit tests passed. Graphs and
 raw data stay in osenv. Physical cycles/cache behavior and homelab remain unverified.
+
+T018 — Goal: reduce boot-to-serving and validate serving candidates.
+Interface: external controlled boot/HTTP benchmark and QMP/GDB milestone probe.
+Prerequisites: T017 exact release, real DHCP/TCP, matching seeds and image hashes.
+Acceptance: real repeated boots/load, packet boundaries, failed-breakpoint safety,
+source integrity and external controller gates. Provenance: own experiments and
+Cloudflare isolate-startup documentation; no guest code imported.
+Result: retain T017 guest bytes, SHA256
+728d4e2074bce8d62794c92d7bf60de74f85a3326ec3681878a56724b4bc3237.
+82574 without unused PXE ROM: reset-to-first-HTTP 72–86 ms (median 73.4), full
+controller launch about 550 ms. Kernel entry 61.6 ms; first DHCP send 64.4 ms
+in separate QMP probes. Final matched runs ~6423 requests/s, median 146 µs,
+p99 225/232 µs. Cached response checksums slowed both NICs and added 512 bytes;
+512 polling checks failed repeats. Both rejected. All tools/evidence stay in
+osenv; firmware dominates reset latency. No matched Cloudflare or physical-board
+win is established. New harness tools and breakpoint-failure regression tested.

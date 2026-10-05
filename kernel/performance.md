@@ -199,3 +199,27 @@ References: [Intel optimization manual](https://cdrdv2-public.intel.com/821612/2
 for PAUSE/polling tradeoffs; [QEMU plugin API](https://www.qemu.org/docs/master/devel/tcg-plugins.html)
 for dispatch counters; [instruction-counting limits](https://qemu-project.gitlab.io/qemu/devel/tcg-icount.html).
 PAUSE latency varies by hardware, so physical retuning remains necessary.
+
+
+## Controlled boot investigation (T018)
+
+The new external perf_bench CLI prepares forwarding while paused, then measures
+reset-resume-call to verified HTTP separately from full controller launch. With
+82574 and its unused network boot ROM disabled, the unchanged T017 image took
+72–86 ms, median 73.4 ms; full launch was about 550 ms. Legacy NIC reset-to-HTTP
+still took 1079–1091 ms. No timer, DHCP or disk-integrity checks were bypassed.
+QMP/GDB probes: reset to kernel_main 61.6 ms; reset to first dhcp_send 64.4 ms.
+These are separate boots, not synchronized component intervals. Firmware/disk
+accounts for most startup time. HTTP timing includes control RPC and 10 ms
+DHCP capture observation resolution; milestone timing uses actual QMP events.
+
+Two matched final serving runs on 82574 gave ~6423 requests/s, median 146 µs,
+p99 225/232 µs. An immutable-response checksum cache slowed both NICs and grew
+the image by 512 bytes; 512 burst checks failed repeat comparisons. Both were
+removed. The release bytes/hash stay unchanged. The external CLI alternates
+baseline/candidate runs with matching seeds and rejects failed aggregates.
+
+[Cloudflare's isolate startup](https://blog.cloudflare.com/eliminating-cold-starts-2-shard-and-conquer/)
+occurs inside an already-running service and may be hidden behind TLS. This
+full BIOS/DHCP startup is a broader boundary; no matched Cloudflare win is claimed.
+Physical board measurements remain unverified.

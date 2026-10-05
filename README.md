@@ -32,7 +32,7 @@ Two-stage integrity-checked disk boot, long-mode paging, E820 page allocation,
 exceptions, PIC/PIT, PCI and Intel 82540EM/82574 legacy DMA/receive interrupts. Compact
 web builds poll briefly after recent RX activity, then sleep atomically.
 The optional osenv `--nic-model e1000e` selects the emulated 82574; it boots
-faster locally but serves slower than the default 82540EM. See performance results. Authored
+faster locally; recent tuning gives comparable serving throughput. See performance results. Authored
 Ethernet/ARP/IPv4/UDP/DHCP/TCP; debug also provides ICMP and DNS A/CNAME/HTTP.
 Device and network configuration comes from actual hardware and packets.
 
