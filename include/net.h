@@ -44,6 +44,9 @@ bool nic_send(const uint8_t *, size_t);
 void nic_poll(void (*)(const uint8_t *, size_t));
 bool nic_link(void);
 bool nic_pending(void);
+#if OSLAB_WEB_ONLY
+bool nic_recent(void);
+#endif
 void nic_interrupt(unsigned);
 bool net_configure(void);
 bool net_resolve(const char *, uint32_t *);

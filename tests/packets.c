@@ -9,6 +9,40 @@ static uint32_t random32(void) {
   rng ^= rng << 17;
   return (uint32_t)rng;
 }
+static uint16_t reference_checksum(const uint8_t *p, size_t n, uint32_t sum) {
+  for (size_t i = 0; i < n; i++) {
+    sum += (uint32_t)p[i] << ((i & 1) ? 0 : 8);
+    sum = (sum & 65535) + (sum >> 16);
+  }
+  while (sum >> 16)
+    sum = (sum & 65535) + (sum >> 16);
+  return (uint16_t)~sum;
+}
+static void checksum_tests(void) {
+  uint64_t seed = rng;
+  static uint8_t bytes[65552];
+  for (size_t i = 0; i < sizeof(bytes); i++)
+    bytes[i] = (uint8_t)random32();
+  for (size_t align = 0; align < 16; align++)
+    for (size_t n = 0; n <= 257; n++)
+      assert(checksum(bytes + align, n) ==
+             reference_checksum(bytes + align, n, 0));
+  for (unsigned i = 0; i < 5000; i++) {
+    size_t n = random32() & 65535, align = random32() & 15;
+    uint32_t src = random32(), dst = random32();
+    uint8_t proto = (uint8_t)random32();
+    assert(checksum(bytes + align, n) ==
+           reference_checksum(bytes + align, n, 0));
+    uint32_t pseudo =
+        (src >> 16) + (src & 65535) + (dst >> 16) + (dst & 65535) + proto + n;
+    assert(transport_checksum(src, dst, proto, bytes + align, n) ==
+           reference_checksum(bytes + align, n, pseudo));
+  }
+  assert(checksum(bytes, 65535) == reference_checksum(bytes, 65535, 0));
+  rng = seed;
+  puts("Independent checksum oracle: alignments, tails and 5000 seeded "
+       "maximum-size cases passed");
+}
 static void ip_tests(void) {
   uint8_t p[64] = {0};
   struct ipv4_view ip;
@@ -118,6 +152,7 @@ static void tcp_tests(void) {
   assert(!tcp_mss(p, sizeof(p), &mss));
 }
 int main(void) {
+  checksum_tests();
   tcp_tests();
   const uint64_t seed = rng;
   ip_tests();

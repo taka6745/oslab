@@ -155,3 +155,47 @@ Normal socket/NAT clients still send eight frames; the server cannot force their
 ACK/request/FIN coalescing. Loss, window boundaries and required acknowledgements
 remain intact. Both NICs passed wire acceptance; 82574 IRQ cause/EOI rearmed
 twice. Integrated boot/fault/recovery, sanitizers and exact-image codec tests passed.
+
+## Instruction-driven tuning (T017)
+
+Pinned one-CPU TCG/NAT production experiments verified 100,000 responses,
+plus a final 10,000-request run. Two seeded runs per candidate; instrumentation
+was separate. Polling budgets 0/8/16/32/64/128/256/512 delivered combined
+563/551/584/1256/1542/1634/4743/4878 requests/s. Always polling 256/512 consumed
+5.70/10.39% of the debug idle TSC interval outside halt. Gate polling on an
+actual RX batch within two timer milliseconds: 256 checks delivered 4668
+requests/s with only 0.21% outside halt. Retain 256; 512 adds little throughput.
+The original masked descriptor check and atomic STI/HLT remain.
+
+With that activity gate, matched 2×5000-request copy experiments measured byte
+loop / REP MOVSB / REP MOVSQ at 4742/5101/6118 requests/s. Retain word copies
+plus byte tails; boot establishes the x86 direction-flag ABI. Host sanitizer
+and guard-page tests execute the actual x86 implementation (Rosetta on this
+Mac), cover zero length, alignments, tails and page edges, and reject a deliberate
+rounded-up word-count defect. No alternative implementation substitutes for it.
+Checksum iterations of 2/8/16 bytes measured 6248/6407/6298 requests/s; retain
+8-byte unrolling with the existing tail and carry fold. An independent byte
+oracle covers alignments and 5000 seeded lengths through 65535 bytes and rejects
+a dropped-word defect. Existing packet/HTTP sanitizer fuzzing remains enabled.
+
+Final exact production image: 12,800 bytes, SHA256
+`728d4e2074bce8d62794c92d7bf60de74f85a3326ec3681878a56724b4bc3237`.
+10,000 requests: 6474 requests/s, median 143 µs, p99 231 µs, cold launch to
+first response 1511 ms. The page, headers and wire exchange are unchanged.
+These changes improve serving; they do not remove the emulator NIC boot delay.
+
+An authored external QEMU plugin counts actual instruction dispatches by ELF
+symbol and cross-checks inline totals against a separate callback count. It adds
+no guest code or production diagnostics. Earlier 32-check/byte-copy debug runs
+attributed 71% of serving dispatches to memcpy, motivating the second copy test.
+Final debug dispatches/request fell 53402→12692; idle dispatches in two seconds
+fell 662060→189143, with 0.18% of the interval outside halt.
+Counts include debug commands and faulting dispatches; LTO-inlined work is
+attributed to the containing symbol. This is not physical retired instructions,
+cycle accuracy, cache misses, power or physical network throughput. Graphs,
+per-request data, candidate sources, hashes and captures remain outside oslab.
+
+References: [Intel optimization manual](https://cdrdv2-public.intel.com/821612/248966-Optimization-Reference-Manual-V1-050.pdf)
+for PAUSE/polling tradeoffs; [QEMU plugin API](https://www.qemu.org/docs/master/devel/tcg-plugins.html)
+for dispatch counters; [instruction-counting limits](https://qemu-project.gitlab.io/qemu/devel/tcg-icount.html).
+PAUSE latency varies by hardware, so physical retuning remains necessary.

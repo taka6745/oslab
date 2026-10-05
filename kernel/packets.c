@@ -1,5 +1,10 @@
 #include "net.h"
 static uint32_t sum_bytes(uint32_t sum, const uint8_t *p, size_t n) {
+  while (n >= 8) {
+    sum += be16(p) + be16(p + 2) + be16(p + 4) + be16(p + 6);
+    p += 8;
+    n -= 8;
+  }
   while (n >= 2) {
     sum += be16(p);
     p += 2;

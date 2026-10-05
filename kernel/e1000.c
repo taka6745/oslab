@@ -29,6 +29,10 @@ static volatile struct rx_desc *rx;
 static volatile struct tx_desc *tx;
 static uint8_t *rx_data, *tx_data;
 static unsigned rx_head, tx_tail;
+#if OSLAB_WEB_ONLY
+static uint64_t last_receive;
+static bool received;
+#endif
 static unsigned nic_irq_line = 255;
 #if !OSLAB_PRODUCTION
 struct nic_stats nic_stats;
@@ -51,6 +55,9 @@ static void write_reg(unsigned r, uint32_t value) {
 }
 bool nic_link(void) { return mmio && (reg(8) & 2); }
 bool nic_pending(void) { return rx && (rx[rx_head].status & 1); }
+#if OSLAB_WEB_ONLY
+bool nic_recent(void) { return received && milliseconds() - last_receive < 2; }
+#endif
 void nic_interrupt(unsigned irq) {
   if (mmio && irq == nic_irq_line)
     (void)reg(0xc0); // ICR read acknowledges/deasserts this device's causes.
@@ -228,6 +235,11 @@ void nic_poll(void (*receive)(const uint8_t *, size_t)) {
     rx_head = (rx_head + 1) % RING;
   }
   // Return a whole processed batch with one MMIO doorbell/flush.
-  if (returned)
+  if (returned) {
+#if OSLAB_WEB_ONLY
+    last_receive = milliseconds();
+    received = true;
+#endif
     write_reg(0x2818, tail);
+  }
 }

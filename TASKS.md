@@ -307,3 +307,20 @@ measured BIOS-to-first-DHCP-send 68.6–69.6 ms; this excludes host setup/DHCP.
 The e1000 emulator gates receive for one second after RCTL initialization.
 Final wire/IRQ, integrated and codec gates passed; external harness/unit checks
 passed. Physical board timing and exact-image homelab remain unverified.
+
+T017 — Goal: profile boot/idle/serving and retain measured bottleneck fixes.
+Interface: bounded packet-burst polling; authored external instruction counters.
+Prerequisites: T016 release, pinned single-CPU QEMU, exact ELF and packet captures.
+Acceptance: seeded repeated production comparisons, independent instruction
+counter agreement, idle/load graphs, source audit, sanitizers and real wire/
+boot/fault/recovery gates. Provenance: Intel optimization manual and QEMU plugin
+API; no imported guest code. Result: 110,000 production responses verified.
+Retain recent-RX-gated 256 checks, REP word copies plus tails, and 8-byte checksum
+unroll. Final 10,000 requests: 6474/s, median 143 µs, p99 231 µs, boot 1511 ms;
+12,800-byte image SHA256
+728d4e2074bce8d62794c92d7bf60de74f85a3326ec3681878a56724b4bc3237.
+Debug serving dispatches/request fell 53402→12692; idle outside halt 0.18%.
+Counter totals agree independently. Both NIC wire suites, integrated boot/fault/
+recovery, decoder, sanitizer/oracle/guard-page and deliberate-defect checks passed.
+Source audits, 18 external harness gates and 15 unit tests passed. Graphs and
+raw data stay in osenv. Physical cycles/cache behavior and homelab remain unverified.

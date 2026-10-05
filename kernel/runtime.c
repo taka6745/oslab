@@ -1,10 +1,11 @@
 #include "os.h"
 void *memcpy(void *d, const void *s, size_t n) {
-  uint8_t *a = d;
-  const uint8_t *b = s;
-  for (size_t i = 0; i < n; i++)
-    a[i] = b[i];
-  return d;
+  void *result = d;
+  size_t words = n / 8;
+  __asm__ volatile("rep movsq" : "+D"(d), "+S"(s), "+c"(words)::"memory");
+  n %= 8;
+  __asm__ volatile("rep movsb" : "+D"(d), "+S"(s), "+c"(n)::"memory");
+  return result;
 }
 void *memset(void *d, int c, size_t n) {
   uint8_t *a = d;

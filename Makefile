@@ -78,11 +78,15 @@ $(OUT)/oslab.img: $(OUT)/stage1.bin $(OUT)/stage2.bin $(OUT)/kernel.payload
 	$(PYTHON) -c 'from pathlib import Path; p=Path("$(OUT)"); a=(p/"stage1.bin").read_bytes(); b=(p/"stage2.bin").read_bytes(); c=(p/"kernel.payload").read_bytes(); assert len(a)==512 and a[-2:]==bytes([85,170]) and len(b)==$(STAGE2_BYTES) and 0<len(c)<=524288; image=a+b+c; (p/"oslab.img").write_bytes(image+bytes((-len(image))%512))'
 clean:
 	rm -f $(OUT)/*.o $(OUT)/*.elf $(OUT)/*.bin $(OUT)/oslab.img
+RUNTIME_HOST_FLAGS ?= $(if $(filter Darwin,$(shell uname -s)),-arch x86_64,)
 host-test: | $(OUT)
 	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -Iinclude kernel/packets.c tests/packets.c -o $(OUT)/packets-test
 	$(OUT)/packets-test
 	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror -Iinclude kernel/http.c tests/http.c -o $(OUT)/http-test
 	$(OUT)/http-test
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) -Iinclude -Dmemcpy=os_memcpy -Dmemset=os_memset -Dmemcmp=os_memcmp -Dstrlen=os_strlen -c kernel/runtime.c -o $(OUT)/runtime-host.o
+	$(CC) -std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror $(RUNTIME_HOST_FLAGS) tests/runtime.c $(OUT)/runtime-host.o -o $(OUT)/runtime-test
+	$(OUT)/runtime-test
 
 # Reject resolved compiler/assembler inputs outside this source repository.
 # Host-test dependencies are deliberately separate and never feed the guest link.
