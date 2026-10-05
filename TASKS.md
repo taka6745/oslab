@@ -289,3 +289,21 @@ recovery, 150,000 sanitizer cases and exact-image packed-boot checks passed.
 Pushed starting OS/harness commits 3d2cb47/a577d08 both passed hosted CI.
 SMP/per-core queues and bonding require new authored subsystems and hardware
 validation; neither is implemented by merely selecting more emulator CPUs.
+
+
+T016 — Goal: lower boot latency and verify minimum TCP exchange cost.
+Interface: optional 82574 legacy NIC; external pcap/QMP phase measurements.
+Prerequisites: T015 image, authored DMA/IRQ stack, real packet peer.
+Acceptance: actual five-frame close; repeat cold boots/load, wire loss/window/
+IRQ tests, sanitizers, packed-image and integrated gates. Provenance: RFC 9293,
+Intel 82574 datasheet and QEMU timing documentation; no code imported.
+Result: optional 82574 support shares our legacy driver; full cold launch-to-
+response 520/530 ms vs 1527/1523 ms on 82540EM. Throughput 914/900 vs 1210/1192
+requests/s, so 82540EM remains default. Image remains 12,800 bytes, SHA256
+fa8913dfef42b4f3e97dae14f10dcbcfc9600e9f331a9741999e31cc17ff6791.
+Five-frame capture verified in production/debug when the client combines
+ACK+GET+FIN; ordinary clients still use eight. Three prior-image QMP probes
+measured BIOS-to-first-DHCP-send 68.6–69.6 ms; this excludes host setup/DHCP.
+The e1000 emulator gates receive for one second after RCTL initialization.
+Final wire/IRQ, integrated and codec gates passed; external harness/unit checks
+passed. Physical board timing and exact-image homelab remain unverified.

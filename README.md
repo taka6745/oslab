@@ -29,8 +29,10 @@ inspection needs no guest network. `DEBUG=0` alone is not a production build.
 ## Implemented and limited
 
 Two-stage integrity-checked disk boot, long-mode paging, E820 page allocation,
-exceptions, PIC/PIT, PCI and Intel 82540EM DMA/receive interrupts. Compact
-web builds poll briefly before sleeping to catch short packet bursts. Authored
+exceptions, PIC/PIT, PCI and Intel 82540EM/82574 legacy DMA/receive interrupts. Compact
+web builds poll briefly before sleeping to catch short packet bursts.
+The optional osenv `--nic-model e1000e` selects the emulated 82574; it boots
+faster locally but serves slower than the default 82540EM. See performance results. Authored
 Ethernet/ARP/IPv4/UDP/DHCP/TCP; debug also provides ICMP and DNS A/CNAME/HTTP.
 Device and network configuration comes from actual hardware and packets.
 
@@ -39,7 +41,7 @@ One connection at a time: GET `/`, 404/405/400 errors, bounded 768-byte headers,
 Content-Length, retransmission, MSS/window limits and a 10-second deadline.
 No keep-alive, TLS, request bodies or concurrent clients. DHCP expiry stops
 serving until restart or debug renewal. Out-of-order data requires retransmission.
-No IPv6, DNS-over-TCP, jumbo frames, other NICs, processes, filesystem, kernel
+No IPv6, DNS-over-TCP, jumbo frames, other NIC models, processes, filesystem, kernel
 disk I/O, SMP or hardware acceleration.
 
 Production uses LTO/-Oz, a 16 KiB stack and eight RX/TX descriptors with two

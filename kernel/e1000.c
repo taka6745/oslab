@@ -1,6 +1,6 @@
 #include "net.h"
 #include "x86.h"
-// Intel 82540EM legacy 16-byte DMA descriptors.
+// Intel 82540EM/82574 legacy 16-byte DMA descriptors.
 #define RING OSLAB_NIC_RING
 _Static_assert(
     RING >= 8 && RING <= 256 && (RING & (RING - 1)) == 0,
@@ -65,7 +65,7 @@ bool nic_init(void) {
         continue;
       unsigned funcs = pci_read(b, d, 0, 12) & 0x800000 ? 8 : 1;
       for (unsigned f = 0; f < funcs; f++)
-        if (pci_read(b, d, f, 0) == 0x100e8086) {
+        if ((id = pci_read(b, d, f, 0)) == 0x100e8086 || id == 0x10d38086) {
           bus = b;
           dev = d;
           fn = f;
@@ -79,7 +79,10 @@ bool nic_init(void) {
   if (nic_irq_line < 3 || nic_irq_line >= 16)
     return false;
   uint32_t bar = pci_read(bus, dev, fn, 16);
-  if ((bar & 1) || ((bar >> 1) & 3) != 0)
+  unsigned type = (bar >> 1) & 3;
+  // Accept 64-bit BARs only when the mapping fits our 32-bit physical map.
+  if ((bar & 1) || (type != 0 && type != 2) ||
+      (type == 2 && pci_read(bus, dev, fn, 20)))
     return false;
   uint32_t address = bar & ~15u;
   if (!address || address < 0x400000)

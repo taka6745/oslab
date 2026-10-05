@@ -121,3 +121,37 @@ wire cost are unchanged. Debug idle halt fraction: baseline 99.84%, polling
 latency/idle tradeoff measured under TCG, not proof of hardware superiority.
 Release image remains 12,800 bytes, SHA256
 `c7dd4825473bdbcd471283db1af722b25780342efc87a67e58d2f9e5e7e1e80c`.
+
+
+## Boot and minimum exchange (T016)
+
+The final image supports the 82574 legacy interface with the same authored
+driver. Four matched 2,000-request runs, alternating device order:
+
+| NIC model | Full launch to first response | Requests/s | Default |
+| --- | --- | --- | --- |
+| 82540EM (`e1000`) | 1,527 / 1,523 ms | 1,210 / 1,192 | Yes |
+| 82574 (`e1000e`) | 520 / 530 ms | 914 / 900 | No |
+
+Use `--nic-model e1000e` with osenv web stress or web peer tests. Guest image
+remains 12,800 bytes, SHA256
+`fa8913dfef42b4f3e97dae14f10dcbcfc9600e9f331a9741999e31cc17ff6791`.
+This is an emulator hardware choice, not physical board speed. Original NIC
+throughput is retained by default. No emulator timers or guest checks were bypassed.
+
+Three QMP RESUME/STOP probes on the preceding image measured 68.61, 68.63 and
+69.59 ms from reset resume through BIOS/disk/kernel/NIC initialization to the
+first DHCP-send breakpoint. This excludes host setup, debugger attachment and
+DHCP; it must not replace the full launch-to-serving measurement. Captures show
+DISCOVER/OFFER followed by a one-second delay before REQUEST/ACK on e1000.
+[QEMU's e1000 model](https://raw.githubusercontent.com/qemu/qemu/master/hw/net/e1000.c)
+gates RX for one second after RCTL initialization. The 82574 path avoids that
+emulator behavior, using the compatible interface documented in the
+[Intel 82574 datasheet](https://device.report/m/d8f635e77f61284e5f89e0d91a2ddc48564a3154f7b1de885fec0d589f1a6695).
+
+Independent captures prove a graceful five-frame exchange: SYN, SYN/ACK,
+ACK+GET+FIN, response+ACK+FIN, ACK. Production/debug packet peers passed.
+Normal socket/NAT clients still send eight frames; the server cannot force their
+ACK/request/FIN coalescing. Loss, window boundaries and required acknowledgements
+remain intact. Both NICs passed wire acceptance; 82574 IRQ cause/EOI rearmed
+twice. Integrated boot/fault/recovery, sanitizers and exact-image codec tests passed.
