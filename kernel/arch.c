@@ -1,3 +1,4 @@
+#include "net.h"
 #include "os.h"
 #include "x86.h"
 struct idt_entry {
@@ -18,10 +19,48 @@ extern void *isr_table[48];
 static struct idt_entry idt[256] __attribute__((aligned(16)));
 volatile uint64_t timer_ticks;
 uint64_t milliseconds(void) { return timer_ticks; }
-void idle(void) { __asm__ volatile("sti; hlt" ::: "memory"); }
+#if OSLAB_PROFILE
+static uint64_t perf_start, halt_ticks, halt_calls, interrupts;
+void perf_reset(void) {
+  __asm__ volatile("cli" ::: "memory");
+  halt_ticks = halt_calls = interrupts = 0;
+  perf_start = cycles();
+  __asm__ volatile("sti" ::: "memory");
+}
+void perf_report(void) {
+  __asm__ volatile("cli" ::: "memory");
+  uint64_t elapsed = cycles() - perf_start;
+  uint64_t halted = halt_ticks, calls = halt_calls, irqs = interrupts;
+  __asm__ volatile("sti" ::: "memory");
+  puts_os("OSL1 PERF clock=tsc scope=halt-through-interrupt-return");
+  field("elapsed_ticks", elapsed);
+  field("halt_ticks", halted);
+  field("halt_calls", calls);
+  field("interrupts", irqs);
+  putc_os('\n');
+}
+#endif
+void idle(void) {
+  // Check DMA with interrupts masked, then atomically enable-and-halt. A
+  // packet arriving between polling and sleep must not wait for the PIT.
+  __asm__ volatile("cli" ::: "memory");
+  if (nic_pending()) {
+    __asm__ volatile("sti" ::: "memory");
+    return;
+  }
+#if OSLAB_PROFILE
+  uint64_t start = cycles();
+#endif
+  __asm__ volatile("sti; hlt" ::: "memory");
+#if OSLAB_PROFILE
+  halt_ticks += cycles() - start;
+  halt_calls++;
+#endif
+}
 void interrupt_dispatch(struct interrupt_frame *f) {
   if (f->vector < 32) {
     __asm__ volatile("cli");
+#if !OSLAB_PRODUCTION
     puts_os("OSL1 PANIC");
     field("vector", f->vector);
     field("error", f->error);
@@ -34,14 +73,34 @@ void interrupt_dispatch(struct interrupt_frame *f) {
     puts_os(" cr2=0x");
     number(cr2, 16);
     putc_os('\n');
+#endif
     for (;;)
       __asm__ volatile("hlt");
   }
+#if OSLAB_PROFILE
+  interrupts++;
+#endif
   if (f->vector == 32)
     timer_ticks++;
+  else
+    nic_interrupt(f->vector - 32);
   if (f->vector >= 40)
     out8(0xa0, 0x20);
   out8(0x20, 0x20);
+}
+bool irq_enable(unsigned irq) {
+  if (irq < 3 || irq >= 16)
+    return false;
+  uint64_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags)::"memory");
+  if (irq >= 8) {
+    out8(0xa1, in8(0xa1) & ~(1u << (irq - 8)));
+    out8(0x21, in8(0x21) & ~(1u << 2));
+  } else
+    out8(0x21, in8(0x21) & ~(1u << irq));
+  if (flags & (1u << 9))
+    __asm__ volatile("sti" ::: "memory");
+  return true;
 }
 void arch_init(void) {
   for (unsigned i = 0; i < 48; i++) {
@@ -59,10 +118,14 @@ void arch_init(void) {
   out8(0x21, 1);
   out8(0xa1, 1);
   out8(0x21, 0xfe);
-  out8(0xa1, 0xff); // Only PIT; NIC uses bounded ring polling initially.
+  out8(0xa1, 0xff); // NIC unmasks its firmware-assigned IRQ after DMA setup.
   // PIT channel 0, mode 2, ~1000 Hz. No firmware timer service after boot.
   out8(0x43, 0x34);
   out8(0x40, 1193 & 255);
   out8(0x40, 1193 >> 8);
+#if OSLAB_PROFILE
+  perf_reset();
+#else
   __asm__ volatile("sti");
+#endif
 }

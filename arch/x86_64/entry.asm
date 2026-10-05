@@ -16,6 +16,6 @@ kernel_entry:
     ud2
 section .bss
 align 16
-stack_bottom: resb 32768
+stack_bottom: resb STACK_BYTES
 stack_top:
 section .note.GNU-stack noalloc noexec nowrite progbits

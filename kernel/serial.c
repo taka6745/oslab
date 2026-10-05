@@ -1,5 +1,6 @@
 #include "os.h"
 #include "x86.h"
+#if !OSLAB_PRODUCTION
 void serial_init(void) {
   out8(0x3fb, 0x80);
   out8(0x3f8, 1);
@@ -20,31 +21,6 @@ void puts_os(const char *s) {
   while (*s)
     putc_os(*s++);
 }
-void number(uint64_t n, unsigned base) {
-  char b[24];
-  size_t i = 0;
-  if (base != 10 && base != 16)
-    return;
-  do {
-    b[i++] = "0123456789abcdef"[n % base];
-    n /= base;
-  } while (n);
-  while (i)
-    putc_os(b[--i]);
-}
-void field(const char *s, uint64_t n) {
-  puts_os(" ");
-  puts_os(s);
-  putc_os('=');
-  number(n, 10);
-}
-void ip_print(uint32_t ip) {
-  for (int i = 3; i >= 0; i--) {
-    number((ip >> (i * 8)) & 255, 10);
-    if (i)
-      putc_os('.');
-  }
-}
 int serial_get(void) { return in8(0x3fd) & 1 ? in8(0x3f8) : -1; }
 _Noreturn void exit_os(bool ok) {
   out32(0xf4, ok ? 0x10 : 0x11);
@@ -60,3 +36,11 @@ _Noreturn void panic(const char *s) {
   for (;;)
     __asm__ volatile("hlt");
 }
+
+#else
+_Noreturn void halt_os(void) {
+  __asm__ volatile("cli");
+  for (;;)
+    __asm__ volatile("hlt");
+}
+#endif

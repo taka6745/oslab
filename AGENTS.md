@@ -45,9 +45,8 @@ Test portable logic on the host with sanitizers and seeded fuzzing; test hardwar
 
 Check outputs, completion markers, expected exit state and unexpected resets/panics externally. A successful compile or guest PASS line alone is not completion. Prove representative tests catch deliberate defects. Gate changes on relevant tests and integrated boot. Verify the exact release image on the homelab before claiming deployment complete.
 
-The external harness fixture gate is established. The next OS goal is the complete
-project-authored disk boot chain. Use real OS images for OS acceptance; fixtures
-remain in osenv and may never substitute for OS implementation.
+Use real OS images for OS acceptance; fixtures remain in osenv and may never
+substitute for OS implementation. Current status is recorded in TASKS.md.
 
 Never commit secrets, private host configuration, generated images or memory dumps. Keep documentation short and current; distinguish implemented, locally tested and homelab verified. Keep all shipped guest code project-authored.
 

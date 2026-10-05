@@ -1,4 +1,5 @@
 #include "net.h"
+#if !OSLAB_PRODUCTION
 static bool last_ok = true;
 static bool equal(const char *a, const char *b) {
   while (*a && *a == *b) {
@@ -48,13 +49,28 @@ static void command(char *line) {
       if (equal(args[0], "dhcp") && count == 1) {
     bool ok = net_configure();
     result("dhcp", ok, milliseconds() - start);
-  } else if (equal(args[0], "resolve") && count == 2) {
+  }
+#if !OSLAB_WEB_ONLY
+  else if (equal(args[0], "resolve") && count == 2) {
     uint32_t ip;
     bool ok = net_resolve(args[1], &ip);
     result("resolve", ok, milliseconds() - start);
   } else if (equal(args[0], "http") && count == 3) {
     bool ok = net_http(args[1], args[2]);
     result("http", ok, milliseconds() - start);
+  }
+#endif
+#if OSLAB_PROFILE
+  else if (equal(args[0], "perf-reset") && count == 1) {
+    perf_reset();
+    puts_os("OSL1 PERF_RESET\n");
+  } else if (equal(args[0], "perf") && count == 1) {
+    perf_report();
+  }
+#endif
+  else if (equal(args[0], "serve") && count == 1) {
+    bool ok = net_serve();
+    result("serve", ok, milliseconds() - start);
   } else if (equal(args[0], "stats") && count == 1) {
     net_stats();
     puts_os("OSL1 MEMORY");
@@ -82,7 +98,18 @@ static void command(char *line) {
     last_ok = false;
   }
 }
+#endif
 void kernel_main(void) {
+#if OSLAB_PRODUCTION
+  arch_init();
+  memory_init();
+  if (!nic_init() || !net_serve())
+    panic("network-startup-failed");
+  for (;;) {
+    net_poll();
+    idle();
+  }
+#else
   serial_init();
   puts_os("OSL1 BOOT kernel long64\n");
   arch_init();
@@ -97,6 +124,10 @@ void kernel_main(void) {
   puts_os(nic ? "OSL1 DEVICE network=ready\n"
               : "OSL1 DEVICE network=absent-or-failed\n");
   puts_os("OSL1 READY\n");
+#if OSLAB_AUTOSERVE
+  if (nic)
+    (void)net_serve();
+#endif
   char line[1024];
   size_t used = 0;
   bool overflow = false;
@@ -125,4 +156,5 @@ void kernel_main(void) {
     }
     idle();
   }
+#endif
 }

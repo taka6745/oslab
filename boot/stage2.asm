@@ -7,9 +7,11 @@ stage2:
     mov ds, ax
     mov es, ax
     mov [drive], dl
+%if !OSLAB_PRODUCTION
     call uart_init
     mov si, marker
     call print16
+%endif
     ; E820 records at 0x5010; count at 0x5000. Maximum 64 records of 24 bytes.
     mov word [0x5000],0
     xor ebx, ebx
@@ -73,21 +75,25 @@ stage2:
     mov cr0,eax
     jmp 0x08:protected_entry
 failed:
+%if !OSLAB_PRODUCTION
     mov si,error
     call print16
     mov dx,0xf4
     mov al,0x11
     out dx,al
+%endif
     cli
 .loop: hlt
     jmp .loop
+%if !OSLAB_PRODUCTION
 %include 'boot/serial.inc'
 marker: db 'OSL1 BOOT stage2',10,0
 error: db 'OSL1 BOOT_ERROR stage2',10,0
+%endif
 align 4
 dap: db 16,0
     dw 0,0,0x1000
-    dq 9
+    dq KERNEL_LBA
 drive: db 0
 retries: db 0
 align 8
@@ -99,6 +105,7 @@ gdtr: dw $-gdt-1
     dd gdt
 bits 32
 protected_entry:
+    cld ; BIOS must not determine the direction of our bounded copies.
     mov ax,0x10
     mov ds,ax
     mov es,ax
@@ -106,8 +113,61 @@ protected_entry:
     mov esp,0x7c00
     mov esi,0x10000
     mov edi,0x100000
+%if KERNEL_COMPRESSED
+    ; Decode our literal/back-reference format with both buffers bounded.
+    mov ebx,0x10000+KERNEL_STORAGE_BYTES
+    mov ebp,0x100000+KERNEL_BYTES
+.decode:
+    cmp esi,ebx
+    je .decoded
+    ja protected_failed
+    movzx ecx,byte [esi]
+    inc esi
+    test cl,0x80
+    jnz .match
+    inc ecx
+    mov eax,ebx
+    sub eax,esi
+    cmp ecx,eax
+    ja protected_failed
+    mov eax,ebp
+    sub eax,edi
+    cmp ecx,eax
+    ja protected_failed
+    rep movsb
+    jmp .decode
+.match:
+    and ecx,127
+    add ecx,3
+    mov eax,ebp
+    sub eax,edi
+    cmp ecx,eax
+    ja protected_failed
+    mov eax,ebx
+    sub eax,esi
+    cmp eax,2
+    jb protected_failed
+    movzx edx,word [esi]
+    add esi,2
+    test edx,edx
+    jz protected_failed
+    mov eax,edi
+    sub eax,0x100000
+    cmp edx,eax
+    ja protected_failed
+    push esi
+    mov esi,edi
+    sub esi,edx
+    rep movsb
+    pop esi
+    jmp .decode
+.decoded:
+    cmp edi,ebp
+    jne protected_failed
+%else
     mov ecx,KERNEL_BYTES
     rep movsb
+%endif
     mov esi,0x100000
     mov ecx,KERNEL_BYTES
     mov eax,2166136261
@@ -175,6 +235,7 @@ protected_entry:
     mov cr0,eax
     jmp 0x18:long_entry
 protected_failed:
+%if !OSLAB_PRODUCTION
     mov esi,protected_error
 .print:
     lodsb
@@ -189,10 +250,13 @@ protected_failed:
     mov dx,0xf4
     mov al,0x11
     out dx,al
+%endif
     cli
 .halt: hlt
     jmp .halt
+%if !OSLAB_PRODUCTION
 protected_error: db 'OSL1 BOOT_ERROR kernel-integrity-or-cpu',10,0
+%endif
 bits 64
 long_entry:
     mov ax,0x10
@@ -205,4 +269,4 @@ long_entry:
     mov rsp,0x7c00
     mov rax,0x100000 ; kernel entry is asserted by the linker script
     jmp rax
-times 4096-($-$$) db 0
+times STAGE2_BYTES-($-$$) db 0

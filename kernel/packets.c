@@ -94,7 +94,6 @@ bool dhcp_parse(const uint8_t *p, size_t n, uint32_t xid, const uint8_t *mac,
   *result = out;
   return true;
 }
-// DNS compressed names are decoded with a bounded hop count and output length.
 static bool dns_name(const uint8_t *p, size_t n, size_t *position, char *name) {
   size_t i = *position, out = 0, consumed = 0;
   bool jumped = false;
@@ -193,8 +192,7 @@ bool dns_answer(const uint8_t *p, size_t n, const char *host, uint16_t id,
   unsigned count = be16(p + 6);
   if (count > 128)
     return false;
-  // Follow a bounded CNAME chain; never accept unrelated additional-section
-  // data.
+  // Reject unrelated additional-section data.
   char wanted[255];
   memcpy(wanted, q, hl + 1);
   struct record {

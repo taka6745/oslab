@@ -1,6 +1,9 @@
 #include "os.h"
 // One bit per physical 4 KiB page below 4 GiB, derived from BIOS E820.
-#define PAGE_COUNT (1u << 20)
+#define PAGE_COUNT (PHYSICAL_LIMIT / 4096)
+_Static_assert(PHYSICAL_LIMIT > 0x400000 && PHYSICAL_LIMIT <= 0x100000000ull &&
+                   PHYSICAL_LIMIT % 32768 == 0,
+               "physical allocator limit");
 static uint8_t used[PAGE_COUNT / 8];
 static uint8_t eligible[PAGE_COUNT / 8];
 static size_t search_page = 1024;

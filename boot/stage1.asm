@@ -13,9 +13,11 @@ normalized:
     mov sp, 0x7c00
     cld
     mov [drive], dl
+%if !OSLAB_PRODUCTION
     call uart_init
     mov si, marker
     call print16
+%endif
     sti
     mov dl, [drive]
     mov ah, 0x41
@@ -28,7 +30,7 @@ normalized:
     jz failed
     mov bp, 3
 .retry:
-    mov word [dap+2],8
+    mov word [dap+2],STAGE2_BYTES/512
     mov si, dap
     mov dl, [drive]
     mov ah, 0x42
@@ -42,7 +44,7 @@ normalized:
 .read:
     mov eax, 2166136261
     mov si, 0x8000
-    mov cx, 4096
+    mov cx, STAGE2_BYTES
 .hash:
     movzx edx, byte [si]
     xor eax, edx
@@ -54,20 +56,24 @@ normalized:
     mov dl, [drive]
     jmp 0:0x8000
 failed:
+%if !OSLAB_PRODUCTION
     mov si, error
     call print16
     mov dx, 0xf4
     mov al, 0x11
     out dx, al
+%endif
     cli
 .loop: hlt
     jmp .loop
+%if !OSLAB_PRODUCTION
 %include 'boot/serial.inc'
 marker: db 'OSL1 BOOT stage1',10,0
 error: db 'OSL1 BOOT_ERROR stage1',10,0
+%endif
 align 4
 dap: db 16,0
-    dw 8,0x8000,0
+    dw STAGE2_BYTES/512,0x8000,0
     dq 1
 drive: db 0
 times 510-($-$$) db 0

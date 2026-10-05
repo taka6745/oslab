@@ -43,9 +43,12 @@ bool nic_init(void);
 bool nic_send(const uint8_t *, size_t);
 void nic_poll(void (*)(const uint8_t *, size_t));
 bool nic_link(void);
+bool nic_pending(void);
+void nic_interrupt(unsigned);
 bool net_configure(void);
 bool net_resolve(const char *, uint32_t *);
 bool net_http(const char *, const char *);
+bool net_serve(void);
 void net_poll(void);
 void net_stats(void);
 #endif

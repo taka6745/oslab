@@ -1,8 +1,15 @@
 #include "net.h"
 #include "x86.h"
-// Intel 82540EM legacy 16-byte DMA descriptors. No external driver code.
-#define RING 64
+// Intel 82540EM legacy 16-byte DMA descriptors.
+#define RING OSLAB_NIC_RING
+_Static_assert(
+    RING >= 8 && RING <= 256 && (RING & (RING - 1)) == 0,
+    "e1000 ring must be a power of two, at least 128 descriptor bytes");
 #define BUFFER 2048
+#define TX_BUFFERS OSLAB_TX_BUFFERS
+_Static_assert(TX_BUFFERS >= 2 && TX_BUFFERS <= RING && RING % TX_BUFFERS == 0,
+               "TX buffer pool");
+static unsigned tx_owner[TX_BUFFERS];
 struct rx_desc {
   uint64_t address;
   uint16_t length, checksum;
@@ -22,7 +29,10 @@ static volatile struct rx_desc *rx;
 static volatile struct tx_desc *tx;
 static uint8_t *rx_data, *tx_data;
 static unsigned rx_head, tx_tail;
+static unsigned nic_irq_line = 255;
+#if !OSLAB_PRODUCTION
 struct nic_stats nic_stats;
+#endif
 uint8_t nic_mac[6];
 static uint32_t pci_read(unsigned b, unsigned d, unsigned f, unsigned off) {
   out32(0xcf8, 0x80000000u | b << 16 | d << 11 | f << 8 | (off & 252));
@@ -40,6 +50,11 @@ static void write_reg(unsigned r, uint32_t value) {
   (void)reg(8);
 }
 bool nic_link(void) { return mmio && (reg(8) & 2); }
+bool nic_pending(void) { return rx && (rx[rx_head].status & 1); }
+void nic_interrupt(unsigned irq) {
+  if (mmio && irq == nic_irq_line)
+    (void)reg(0xc0); // ICR read acknowledges/deasserts this device's causes.
+}
 bool nic_init(void) {
   unsigned bus = 0, dev = 0, fn = 0;
   bool found = false;
@@ -60,6 +75,9 @@ bool nic_init(void) {
     }
   if (!found)
     return false;
+  nic_irq_line = pci_read(bus, dev, fn, 0x3c) & 255;
+  if (nic_irq_line < 3 || nic_irq_line >= 16)
+    return false;
   uint32_t bar = pci_read(bus, dev, fn, 16);
   if ((bar & 1) || ((bar >> 1) & 3) != 0)
     return false;
@@ -72,7 +90,7 @@ bool nic_init(void) {
   __asm__ volatile("invlpg (%0)" ::"r"((uintptr_t)address) : "memory");
   mmio = (void *)(uintptr_t)address;
   uint32_t command = pci_read(bus, dev, fn, 4);
-  pci_write(bus, dev, fn, 4, (command & 65535) | 6u);
+  pci_write(bus, dev, fn, 4, (command & 65535 & ~(1u << 10)) | 6u);
   write_reg(0xd8, 0xffffffff);
   write_reg(0x100, 0);
   write_reg(0x400, 0);
@@ -98,17 +116,21 @@ bool nic_init(void) {
     mmio = NULL;
     return false;
   }
-  rx = pages_alloc(1);
-  tx = pages_alloc(1);
+  // Legacy rings require 128-byte alignment. RING is a power of two >= 8,
+  // so each ring occupies a multiple of 128 bytes; two rings never overlap.
+  rx = pages_alloc((2 * RING * 16 + 4095) / 4096);
+  tx = rx ? (void *)((uint8_t *)(void *)rx + RING * 16) : NULL;
   rx_data = pages_alloc(RING * BUFFER / 4096);
-  tx_data = pages_alloc(RING * BUFFER / 4096);
+  tx_data = pages_alloc((TX_BUFFERS * BUFFER + 4095) / 4096);
   if (!rx || !tx || !rx_data || !tx_data)
     panic("nic-dma-memory");
   for (unsigned i = 0; i < RING; i++) {
     rx[i].address = (uintptr_t)(rx_data + i * BUFFER);
-    tx[i].address = (uintptr_t)(tx_data + i * BUFFER);
+    tx[i].address = (uintptr_t)(tx_data + (i % TX_BUFFERS) * BUFFER);
     tx[i].status = 1;
   }
+  for (unsigned i = 0; i < TX_BUFFERS; i++)
+    tx_owner[i] = i;
   for (unsigned i = 0; i < 128; i++)
     write_reg(0x5200 + i * 4, 0);
   write_reg(0x2800, (uintptr_t)rx);
@@ -127,12 +149,21 @@ bool nic_init(void) {
   write_reg(
       0x100,
       2 | (1u << 15) |
-          (1u << 26)); // EN, broadcast accept, strip CRC, 2048-byte buffers.
+          (1u << 26));  // EN, broadcast accept, strip CRC, 2048-byte buffers.
+  write_reg(0x2820, 0); // RDTR: publish RX completions without packet delay.
+  write_reg(0x282c, 0); // RADV: no additional absolute RX delay.
+  write_reg(0xc4, 64);  // ITR: cap interrupts at 61,035/s (256 ns units).
+  (void)reg(0xc0);
+  if (!irq_enable(nic_irq_line))
+    return false;
+  write_reg(0xd0, (1u << 7) | (1u << 6) | (1u << 4) | (1u << 2));
+#if !OSLAB_PRODUCTION
   puts_os("OSL1 NIC driver=e1000");
   field("pci_bus", bus);
   field("pci_device", dev);
   field("ring", RING);
   putc_os('\n');
+#endif
   deadline = milliseconds() + 3000;
   while (!nic_link() && milliseconds() < deadline)
     idle();
@@ -142,11 +173,15 @@ bool nic_send(const uint8_t *data, size_t size) {
   if (!mmio || size > 1514 || size < 14)
     return false;
   volatile struct tx_desc *d = &tx[tx_tail];
-  if (!(d->status & 1)) {
+  unsigned slot = tx_tail % TX_BUFFERS;
+  if (!(d->status & 1) || !(tx[tx_owner[slot]].status & 1)) {
+#if !OSLAB_PRODUCTION
     nic_stats.tx_full++;
+#endif
     return false;
   }
-  memcpy(tx_data + tx_tail * BUFFER, data, size);
+  memcpy(tx_data + slot * BUFFER, data, size);
+  tx_owner[slot] = tx_tail;
   d->length = size;
   d->cso = 0;
   d->css = 0;
@@ -156,8 +191,10 @@ bool nic_send(const uint8_t *data, size_t size) {
   __asm__ volatile("sfence" ::: "memory");
   tx_tail = (tx_tail + 1) % RING;
   write_reg(0x3818, tx_tail);
+#if !OSLAB_PRODUCTION
   nic_stats.tx_packets++;
   nic_stats.tx_bytes += size;
+#endif
   return true;
 }
 void nic_poll(void (*receive)(const uint8_t *, size_t)) {
@@ -170,11 +207,15 @@ void nic_poll(void (*receive)(const uint8_t *, size_t)) {
       break;
     barrier();
     size_t len = d->length;
-    if (d->errors || !(d->status & 2) || len < 14 || len > 1514)
+    if (d->errors || !(d->status & 2) || len < 14 || len > 1514) {
+#if !OSLAB_PRODUCTION
       nic_stats.rx_errors++;
-    else {
+#endif
+    } else {
+#if !OSLAB_PRODUCTION
       nic_stats.rx_packets++;
       nic_stats.rx_bytes += len;
+#endif
       receive(rx_data + rx_head * BUFFER, len);
     }
     d->status = 0;
