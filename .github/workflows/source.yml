@@ -42,7 +42,7 @@ jobs:
           done < <(git ls-files -z)
       - name: Fetch pinned external source auditor outside OS checkout
         env:
-          HARNESS_COMMIT: 36df9ca2db315f13a0684c56c3849962b4a70c4d
+          HARNESS_COMMIT: 13716352a87d7b47b0964ac71cf26d767a300558
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
@@ -59,7 +59,7 @@ jobs:
           python-version: '3.12'
       - name: Fetch pinned external OS controller
         env:
-          HARNESS_COMMIT: 36df9ca2db315f13a0684c56c3849962b4a70c4d
+          HARNESS_COMMIT: 13716352a87d7b47b0964ac71cf26d767a300558
         run: |
           git clone https://github.com/taka6745/osenv.git "$RUNNER_TEMP/osenv"
           git -C "$RUNNER_TEMP/osenv" checkout "$HARNESS_COMMIT"
