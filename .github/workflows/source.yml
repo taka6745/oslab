@@ -91,10 +91,8 @@ jobs:
           python3 -m osenv raw-build --project "$GITHUB_WORKSPACE" --output build/raw-packed --packed > os-raw-packed-build.json
           python3 -m osenv raw-test --build build/raw-packed --output local/raw-packed-acceptance > os-raw-packed-gate.json
           python3 -m osenv.raw_packed_test --build build/raw-packed --output local/raw-decoder-acceptance > os-raw-decoder-gate.json
-          if python3 -m osenv.raw_queue_test --build build/raw-packed --output local/raw-queue-mutant.json --queue-mutant; then
-            echo "Missing deferred handshake publication was not detected"
-            exit 1
-          fi
+          python3 -m osenv.raw_queue_test --build build/raw-packed --output local/raw-queue-mutant.json --queue-mutant
+          python3 -c 'import json; r=json.load(open("local/raw-queue-mutant.json")); assert r["mutant_rejected"] is True and r["ok"] is False'
           python3 -m osenv raw-size --build build/raw-packed --output local/raw-size > os-raw-size.json
           python3 -m unittest osenv.raw_size_test -v
       - name: Literal direct-entry CPU metadata and PCI gates
