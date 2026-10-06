@@ -29,6 +29,12 @@ remote IP68, remote port72, window74, MSS76, receive-next80, send-unacknowledged
 send-next88, pending sequence92, flags96, retry count97, payload size100,
 request size104, response offset108, data pointer112, length120, deadline128,
 retry time136, and peer MAC144. Offsets160..271 are bounded parser/TX scratch.
+Offsets280..375 hold one deferred SYN: pending flag280, header length284,
+source/destination288/292, MAC296, up to60 header bytes304, expiry368.
+While the old connection closes with its own FIN acknowledged, a different
+tuple may occupy this slot. It cannot overwrite the old connection. After close,
+the saved bytes re-enter the complete TCP parser; expiry, lease loss and NAK
+clear the slot. This is a bounded resource policy, not concurrent serving.
 IPs in state retain their four wire bytes; checksum arguments convert to host
 integer order. TCP sequence arithmetic uses signed modulo-32-bit differences.
 
@@ -62,6 +68,7 @@ Reusable external boundary gate, from the osenv checkout:
 
 ```sh
 python3 -m osenv.raw_network_test --build build/EXACT-IMAGE --output local/NEW.json
+python3 -m osenv.raw_queue_test --build build/EXACT-IMAGE --output local/QUEUE.json
 ```
 
 Peer tests use a realtime guest clock because their socket observation waits use

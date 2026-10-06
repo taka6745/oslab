@@ -101,4 +101,4 @@ CPU exception frames intact; external GDB/QMP can inspect all accessible guest
 memory/registers/devices. Boot16/protected32/kernel32/kernel64 ranges and addresses
 are recorded in the build manifest. Generated images, symbols and evidence stay
 outside this repository. [Raw measurements and validation](src/raw/README.md)
-record the 8,192-byte packed image, scoped minimum proof, timing comparisons and exact-image homelab gates. Optional [literal PVH entry](src/raw/pvh.md) bypasses disk firmware while retaining the shared kernel and mandatory BIOS acceptance.
+record the 8,704-byte packed image, scoped minimum proof, timing comparisons and exact-image homelab gates. Optional [literal PVH entry](src/raw/pvh.md) bypasses disk firmware while retaining the shared kernel and mandatory BIOS acceptance.

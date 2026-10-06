@@ -1,6 +1,6 @@
 ; Authored instruction bytes; Intel SDM interrupt gate/IRETQ formats.
 .section text
-.org 102078
+.org 1021b8
 @irq_init
 FA 53
 8B 1C 25 1C 01 18 00

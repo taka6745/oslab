@@ -1,6 +1,6 @@
 ; Authored literal x86-64 opcodes. See network.md for state layout/provenance.
 .section text
-.org 101198
+.org 101190
 @net_init
 53 bb 00 00 19 00
 48 89 df be 00 30 00 00 e8 rel32:mem_zero
@@ -12,6 +12,7 @@
 80 7b 08 00 74 rel8:net_unconfigured
 48 3b 43 28 72 rel8:net_receive
 c6 43 08 00 c6 43 40 00 c6 43 09 00
+c6 83 18 01 00 00 00
 @net_unconfigured
 48 3b 43 30 72 rel8:net_receive
 48 05 e8 03 00 00 48 89 43 30
@@ -28,6 +29,21 @@ e8 rel32:nic_release
 41 ff cd 75 rel8:net_rx_loop
 @net_rx_done
 e8 rel32:net_server_poll
+; Single bounded queued handshake; actual copied bytes, never an active second connection.
+80 bb 18 01 00 00 00 74 rel8:net_poll_end
+48 8b 03 48 3b 83 70 01 00 00 73 rel8:net_syn_queue_clear
+80 7b 08 01 75 rel8:net_syn_queue_clear
+48 3b 43 28 73 rel8:net_syn_queue_clear
+80 7b 40 00 75 rel8:net_poll_end
+c6 83 18 01 00 00 00
+8b 83 20 01 00 00 89 83 a0 00 00 00
+8b 83 24 01 00 00 89 83 a4 00 00 00
+48 8d bb 30 01 00 00 8b b3 1c 01 00 00 48 8d 93 28 01 00 00
+e8 rel32:net_tcp_receive
+eb rel8:net_poll_end
+@net_syn_queue_clear
+c6 83 18 01 00 00 00
+@net_poll_end
 41 5d 41 5c 5b c3
 ; common IPv4 transmit: TX frame already populated, esi=transport length,
 ; edx=protocol, ecx=source (wire-order dword), r8d=destination wire-order
@@ -246,6 +262,7 @@ eb rel8:net_dhcp_end
 @net_dhcp_nak
 80 7b 09 01 75 rel8:net_dhcp_end
 3b 43 18 75 rel8:net_dhcp_end
+c6 83 18 01 00 00 00
 c6 43 09 00 c6 43 0a 00 48 c7 43 30 00 00 00 00
 @net_dhcp_end
 48 83 c4 08 41 5f 41 5e 41 5d 41 5c 5d 5b c3
@@ -341,8 +358,8 @@ c7 43 68 00 00 00 00 c7 43 6c 00 00 00 00
 bf 12 00 00 00 31 d2 31 c9 e8 rel32:net_transmit
 e9 rel32:net_tcp_end
 @net_tcp_existing
-8b 83 a0 00 00 00 3b 43 44 0f 85 rel32:net_tcp_end
-66 41 8b 04 24 66 3b 43 48 0f 85 rel32:net_tcp_end
+8b 83 a0 00 00 00 3b 43 44 0f 85 rel32:net_tcp_queue_syn
+66 41 8b 04 24 66 3b 43 48 0f 85 rel32:net_tcp_queue_syn
 f6 83 bc 00 00 00 04 74 rel8:net_tcp_not_reset
 8b 83 b4 00 00 00 3b 43 50 0f 85 rel32:net_tcp_end
 c6 43 40 00 e9 rel32:net_tcp_end
@@ -403,6 +420,23 @@ bf 14 00 00 00 8b 73 58 31 d2 31 c9 e8 rel32:net_tcp_send
 c6 43 40 00
 @net_tcp_end
 41 5f 41 5e 41 5d 41 5c 5b c3
+@net_tcp_queue_syn
+80 7b 42 01 0f 85 rel32:net_tcp_end
+8b 43 54 3b 43 58 0f 85 rel32:net_tcp_end
+8b 83 bc 00 00 00 83 e0 17 83 f8 02 0f 85 rel32:net_tcp_end
+45 39 f5 0f 85 rel32:net_tcp_end
+48 8b 93 08 01 00 00 f6 02 01 0f 85 rel32:net_tcp_end
+8b 83 a0 00 00 00 85 c0 0f 84 rel32:net_tcp_end
+0f c8 c1 e8 18 3c e0 0f 83 rel32:net_tcp_end
+80 bb 18 01 00 00 00 0f 85 rel32:net_tcp_end
+8b 83 a0 00 00 00 89 83 20 01 00 00
+8b 83 a4 00 00 00 89 83 24 01 00 00
+44 89 b3 1c 01 00 00
+48 8b 03 48 05 10 27 00 00 48 89 83 70 01 00 00
+48 8d bb 30 01 00 00 4c 89 e6 44 89 f2 e8 rel32:mem_copy
+48 8d bb 28 01 00 00 48 8b b3 08 01 00 00 ba 06 00 00 00 e8 rel32:mem_copy
+c6 83 18 01 00 00 01
+e9 rel32:net_tcp_end
 @net_server_poll
 53 bb 00 00 19 00
 80 7b 40 00 0f 84 rel32:net_server_end

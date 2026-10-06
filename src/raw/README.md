@@ -5,7 +5,21 @@ and fixed-width fields, writes symbol containers and optionally packs data; no
 guest compiler, assembler, linker or imported executable/header bytes. Readable
 sources remain separate; fixed hardware and unsupported features are in README.
 
-T023 packed BIOS disk: **8,192 bytes /65,536 bits**, SHA256
+T024 packed BIOS disk: **8,704 bytes /69,632 bits**, SHA256
+`fffe2ffc03072c8e9a09d72a396eebc79af4b077e55971010d97096c920dc21f`.
+Decoded kernel8,888 bytes; optional direct ELF10,088 bytes. One bounded deferred
+SYN prevents a new peer's handshake being lost while the previous peer closes.
+The active connection, packet validation, replay parser and deadlines remain
+intact. Local/homelab gates and30,000 homelab requests passed; measured direct
+CPU release→full HTTP12.025ms,3,837RPS, median client242.882µs/run p99377.476µs.
+These fresh results are not a matched speedup over the historical measurements.
+DMA-copy, checksum-cache and empty-poll experiments established no serving gain;
+they are excluded. Extended NIC checksum offload and static scatter/gather were
+slower in paired trials and also excluded. Separately scoped KVM host/guest PMU
+records guide further work; they do not establish physical CPU or cache behavior.
+Evidence and rejected candidates remain in osenv/local/t024.
+
+Historical T023 packed BIOS disk: **8,192 bytes /65,536 bits**, SHA256
 `2c226df829c01614d63bc9bed5ec1edd1d85a98574ae9f5f8792352d4d3b097d`.
 Decoded kernel8,568 bytes;512-byte BIOS,187-byte adapter,7,433-byte optimal stream
 and60-byte sector fill. Website1,366 bytes plus94 HTTP header bytes still fits
@@ -16,7 +30,7 @@ shortest equivalent OS is unproved. Storage fell five stream bytes from T022,
 with three fewer checksum instructions per32-byte block and the same bounds,
 loads, negative-zero/carry semantics, tails and ABI.
 
-Optional [literal direct entry](pvh.md): kernel plus382+600-byte adapters in a
+Historical T023 [literal direct entry](pvh.md): kernel plus382+600-byte adapters in a
 9,768-byte ELF, SHA256
 `07e285d7364098aa23571f540f108eeee43fc00187ac0061ca2f0c3c08f54218`.
 It bypasses disk firmware on a fresh VM; complete BIOS acceptance stays mandatory.

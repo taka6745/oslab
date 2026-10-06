@@ -458,3 +458,23 @@ physical power-on/cache/cycle or arbitrary suspend-recovery claim. Separate VM
 scaling is not SMP. Storage failure retained; sparse capture conservation verified.
 Source audit and36 harness regressions passed. External local/t023 has raw data,
 proofs, comparisons, graphs, rejected candidates and exact-head CI records.
+
+T024 — Goal: identify and remove real full-literal boot/serving bottlenecks.
+Interface: isolated opcode candidates and external paired measurements/profiling.
+Prerequisites: T023 exact baseline, unchanged HTTP/safety/hardware contract.
+Acceptance: independently checked poisoned-memory/DMA ownership, actual-image
+boot/network/decoder gates, matched boot/RPS/p99 and exact-image homelab before
+shipping. Compare execution changes rather than instruction-source format.
+Provenance: authored bytes and primary Intel/QEMU specifications only.
+Status: real stress exposed a new SYN arriving before the previous peer's FIN;
+the single connection discarded it. Added one bounded deferred handshake without
+changing the old connection, parser checks or deadlines. All8 local/homelab gates,
+88 queue/protocol checks, a rejected publication mutant,13 decoder and19 local
+PVH cases passed; exact homelab image served30,000 complete requests. Source rebuild
+matches SHAfffe2ffc...c21f, disk8704/decoded8888 bytes. DMA construction, checksum
+cache and empty-poll candidates established no matched serving gain and remain
+excluded. Extended NIC checksum offload was3.8% slower (paired95% interval
+0.915..0.993); static scatter/gather was4.8% slower (0.934..0.969). Neither
+ships. A100,000-response DMA repeat remained inconclusive (0.987..1.050).
+Linux PMU host/guest scopes were measured separately; optional KVM clock research
+continues. Candidate sources, failures and measurements stay in osenv/local/t024.
